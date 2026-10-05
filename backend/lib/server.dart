@@ -10,6 +10,7 @@ import 'src/app.dart';
 import 'src/http/http_utils.dart';
 import 'src/routes/auth_routes.dart';
 import 'src/routes/company_routes.dart';
+import 'src/routes/integration_routes.dart';
 import 'src/routes/kiosk_routes.dart';
 import 'src/routes/member_routes.dart';
 import 'src/routes/punch_routes.dart';
@@ -41,6 +42,7 @@ Handler buildHandler(App app) {
       .add(ReportRoutes(app).router.call)
       .add(SocialRoutes(app).router.call)
       .add(KioskRoutes(app).router.call)
+      .add(IntegrationRoutes(app).router.call)
       .add((Request r) => throw const ApiError(404, 'route_not_found', 'Rota não encontrada'))
       .handler;
 
@@ -98,7 +100,7 @@ Middleware _errors() => (inner) => (req) async {
     };
 
 Middleware _cors(List<String> origins) {
-  const allowHeaders = 'Authorization, Content-Type, X-Company-Id, X-Filename';
+  const allowHeaders = 'Authorization, Content-Type, X-Company-Id, X-Filename, X-Api-Key';
   const allowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
   return (inner) => (req) async {
         final origin = req.headers['origin'];

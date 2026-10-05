@@ -1203,6 +1203,8 @@ class _AuditPageState extends ConsumerState<AuditPage> {
     'afd': 'AFD',
     'timesheet': 'Assinaturas',
     'period': 'Períodos',
+    'api_key': 'Chaves de API',
+    'webhook': 'Webhooks',
   };
 
   static const _actions = {
@@ -1223,6 +1225,7 @@ class _AuditPageState extends ConsumerState<AuditPage> {
     'activate': 'ativou',
     'close': 'fechou',
     'reopen': 'reabriu',
+    'revoke': 'revogou',
   };
 
   @override

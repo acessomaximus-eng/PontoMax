@@ -133,6 +133,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
       );
       return (await tx.one('$_requestSelect WHERE r.id = @id', {'id': r['id']}))!;
     });
+    app.webhooks.dispatch(ctx.companyId, 'request.created', map.request(row));
     return created(map.request(row));
   }
 
@@ -202,6 +203,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
           data: {'request_id': id});
       return (await tx.one('$_requestSelect WHERE r.id = @id', {'id': id}))!;
     });
+    app.webhooks.dispatch(ctx.companyId, 'request.approved', map.request(row));
     return jsonResponse(map.request(row));
   }
 
@@ -227,6 +229,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
           data: {'request_id': id});
       return (await tx.one('$_requestSelect WHERE r.id = @id', {'id': id}))!;
     });
+    app.webhooks.dispatch(ctx.companyId, 'request.rejected', map.request(row));
     return jsonResponse(map.request(row));
   }
 

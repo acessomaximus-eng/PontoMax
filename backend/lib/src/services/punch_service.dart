@@ -169,7 +169,7 @@ class PunchService {
       throw const ApiError.unprocessable('photo_required', 'A foto é obrigatória para registrar o ponto');
     }
 
-    return app.db.tx((tx) async {
+    final saved = await app.db.tx((tx) async {
       // Bloqueia a empresa (sequência de NSR/hash) e a duplicidade.
       final company = await tx.one(
         'UPDATE companies SET last_nsr = last_nsr + 1 WHERE id = @c RETURNING last_nsr, last_hash',
@@ -242,6 +242,8 @@ class PunchService {
       );
       return (await tx.one('$punchSelectSql WHERE p.id = @id', {'id': row!['id']}))!;
     });
+    app.webhooks.dispatch(input.companyId, 'punch.created', Mappers(app).punch(saved, offset));
+    return saved;
   }
 
   /// Inclusão manual (tratamento do ponto) — não é registro do REP, logo

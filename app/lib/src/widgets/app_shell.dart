@@ -119,49 +119,56 @@ List<NavGroup> navGroups(Me me) => [
       ),
     ]),
   if (me.isManager)
-    const NavGroup('Configurações', [
-      NavItem(
+    NavGroup('Configurações', [
+      const NavItem(
         '/escalas',
         'Escalas e jornadas',
         Icons.schedule_outlined,
         selectedIcon: Icons.schedule,
       ),
-      NavItem(
+      const NavItem(
         '/feriados',
         'Feriados',
         Icons.event_outlined,
         selectedIcon: Icons.event,
       ),
-      NavItem(
+      const NavItem(
         '/perimetros',
         'Perímetros',
         Icons.share_location_outlined,
         selectedIcon: Icons.share_location,
       ),
-      NavItem(
+      const NavItem(
         '/dispositivos',
         'Quiosques',
         Icons.tablet_android_outlined,
         selectedIcon: Icons.tablet_android,
       ),
-      NavItem(
+      const NavItem(
         '/cadastros',
         'Departamentos e cargos',
         Icons.account_tree_outlined,
         selectedIcon: Icons.account_tree,
       ),
-      NavItem(
+      const NavItem(
         '/empresa',
         'Empresa e regras',
         Icons.business_outlined,
         selectedIcon: Icons.business,
       ),
-      NavItem(
+      const NavItem(
         '/auditoria',
         'Auditoria',
         Icons.policy_outlined,
         selectedIcon: Icons.policy,
       ),
+      if (me.isAdmin)
+        const NavItem(
+          '/integracoes',
+          'Integrações (API)',
+          Icons.hub_outlined,
+          selectedIcon: Icons.hub,
+        ),
     ]),
 ];
 

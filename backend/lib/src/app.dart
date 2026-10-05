@@ -11,6 +11,7 @@ import 'services/punch_service.dart';
 import 'services/report_service.dart';
 import 'services/storage_service.dart';
 import 'services/timesheet_service.dart';
+import 'services/webhook_service.dart';
 
 /// Contêiner de dependências da aplicação.
 class App {
@@ -29,6 +30,7 @@ class App {
   late final TimesheetService timesheets = TimesheetService(this);
   late final ReportService reports = ReportService(this);
   late final ClosingService closings = ClosingService(this);
+  late final WebhookService webhooks = WebhookService(this);
 
   App(this.config, this.db, {DateTime Function()? clock})
       : _clock = clock ?? (() => DateTime.now().toUtc());

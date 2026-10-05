@@ -62,3 +62,40 @@ Content-Type: application/json
 ```
 
 Resposta `201`: `{"punch": {...,"nsr": 1104, "hash": "…"}, "receipt": {"fields": [...], "text": "…"}}`.
+
+## Integração (folha de pagamento, ERP, BI)
+
+### Chaves de API
+
+Crie em **Configurações › Integrações (API)** (somente administradores). A chave completa (`pmx_<prefixo>_<segredo>`) é exibida apenas uma vez; o servidor guarda só o hash SHA-256.
+
+```bash
+curl -H "X-Api-Key: pmx_abcd1234_..." \
+  "https://SEU_DOMINIO/api/v1/punches?from=2026-10-01&to=2026-10-31"
+```
+
+- Somente **GET** e apenas nas rotas: `members`, `punches`, `timesheet`, `reports/*` (resumo, folha, marcações, AFD, AEJ), `holidays`, `schedules`, `departments`, `positions`, `absences`, `requests`, `bank`, `company`, `geofences`.
+- A chave age com a visão de gestor da empresa; uso fica registrado em `last_used_at`; revogue a qualquer momento.
+
+### Webhooks
+
+Eventos: `punch.created`, `request.created`, `request.approved`, `request.rejected`, `member.created`, `member.dismissed`, `period.closed` (e `ping` no teste).
+
+```http
+POST https://seu-sistema/webhook
+Content-Type: application/json
+X-PontoMax-Event: punch.created
+X-PontoMax-Delivery: 3f9a...
+X-PontoMax-Signature: sha256=<HMAC-SHA256 do corpo com o segredo do webhook>
+
+{"id": "3f9a...", "event": "punch.created", "created_at": "2026-10-05T11:00:00Z", "data": { ...marcação... }}
+```
+
+Responda 2xx em até 15 s. Falhas são tentadas novamente até 3 vezes; o último status aparece na tela de integrações.
+
+Validação da assinatura (Node.js):
+
+```js
+const sig = 'sha256=' + crypto.createHmac('sha256', SEGREDO).update(rawBody).digest('hex');
+if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(req.headers['x-pontomax-signature']))) throw new Error('assinatura inválida');
+```

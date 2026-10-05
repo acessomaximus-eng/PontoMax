@@ -120,8 +120,60 @@ class SessionService {
         row['cpf'] as String?, row['super_admin'] as bool);
   }
 
+  /// Rotas acessíveis por chave de API (somente leitura).
+  static const apiKeyPrefixes = [
+    'members',
+    'punches',
+    'timesheet',
+    'reports/',
+    'holidays',
+    'schedules',
+    'departments',
+    'positions',
+    'absences',
+    'requests',
+    'bank',
+    'company',
+    'geofences',
+  ];
+
+  /// Autentica uma integração via `X-Api-Key: pmx_<prefixo>_<segredo>`.
+  /// Age com os direitos de gestor de quem criou a chave, apenas em GET.
+  Future<MemberContext> _apiKeyContext(Request req, String key) async {
+    final parts = key.trim().split('_');
+    if (parts.length != 3 || parts[0] != 'pmx') throw const ApiError.unauthorized('Chave de API inválida');
+    final row = await app.db.one(
+      '''
+      SELECT k.*, m.user_id, m.role, row_to_json(c.*)::jsonb AS company_json, row_to_json(m.*)::jsonb AS member_json
+      FROM api_keys k JOIN members m ON m.id = k.created_by JOIN companies c ON c.id = k.company_id
+      WHERE k.prefix = @p AND k.revoked_at IS NULL AND m.active''',
+      {'p': parts[1]},
+    );
+    if (row == null || !constantTimeEquals(sha256Hex(key.trim()), row['key_hash'] as String)) {
+      throw const ApiError.unauthorized('Chave de API inválida ou revogada');
+    }
+    if (req.method != 'GET') throw const ApiError.forbidden('Chaves de API são somente leitura');
+    final path = req.url.path;
+    if (!apiKeyPrefixes.any(path.startsWith)) {
+      throw const ApiError.forbidden('Rota não disponível para chaves de API');
+    }
+    await app.db.execute('UPDATE api_keys SET last_used_at = now() WHERE id = @id', {'id': row['id']});
+    final user = AuthUser(row['user_id'] as String, 'API: ${row['name']}', '', null, false);
+    final role = Role.fromCode(row['role'] as String);
+    return MemberContext(
+      user: user,
+      memberId: row['created_by'] as String,
+      companyId: row['company_id'] as String,
+      role: role.isManager ? role : Role.manager,
+      company: (row['company_json'] as Map).cast<String, dynamic>(),
+      member: (row['member_json'] as Map).cast<String, dynamic>(),
+    );
+  }
+
   /// Resolve o vínculo ativo pelo cabeçalho `X-Company-Id` (ou o primeiro).
   Future<MemberContext> member(Request req) async {
+    final apiKey = req.headers['x-api-key'];
+    if (apiKey != null && apiKey.isNotEmpty) return _apiKeyContext(req, apiKey);
     final user = await authenticate(req);
     final companyId = req.headers['x-company-id'] ?? req.url.queryParameters['company_id'];
     final row = await app.db.one(

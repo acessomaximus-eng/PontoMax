@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:pontomax_backend/src/seed.dart';
 import 'package:pontomax_core/pontomax_core.dart';
@@ -410,6 +413,68 @@ void main() {
         'member_id': member, 'date': '2026-10-02', 'time': '08:00', 'reason': 'x',
       }, token: token);
       expect(after.status, 201);
+    });
+  });
+
+  group('Integrações', () {
+    test('chave de API somente leitura e revogação', () async {
+      final (token, _, _) = await api.register();
+      final k = await api.post('/integrations/api-keys', {'name': 'Folha'}, token: token);
+      expect(k.status, 201, reason: '$k');
+      final key = k.json['key'] as String;
+      expect(key, startsWith('pmx_'));
+      final members = await api.call('GET', '/members', headers: {'x-api-key': key});
+      expect(members.status, 200);
+      expect(members.list, isNotEmpty);
+      final afd = await api.call('GET', '/reports/afd?from=2026-10-01&to=2026-10-31', headers: {'x-api-key': key});
+      expect(afd.status, 200);
+      final write = await api.call('POST', '/departments', body: {'name': 'x'}, headers: {'x-api-key': key});
+      expect(write.status, 403);
+      final notAllowed = await api.call('GET', '/integrations/api-keys', headers: {'x-api-key': key});
+      expect(notAllowed.status, 403);
+      final keys = await api.get('/integrations/api-keys', token: token);
+      expect(keys.list.single.containsKey('key'), isFalse);
+      expect(keys.list.single['last_used_at'], isNotNull);
+      await api.delete('/integrations/api-keys/${k.json['id']}', token: token);
+      final revoked = await api.call('GET', '/members', headers: {'x-api-key': key});
+      expect(revoked.status, 401);
+      final forged = await api.call('GET', '/members', headers: {'x-api-key': 'pmx_${k.json['prefix']}_falsa'});
+      expect(forged.status, 401);
+    });
+
+    test('webhook assinado recebe a marcação registrada', () async {
+      final received = <(Map<String, String>, String)>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((req) async {
+        final body = await utf8.decodeStream(req);
+        received.add(({
+          'event': req.headers.value('x-pontomax-event') ?? '',
+          'signature': req.headers.value('x-pontomax-signature') ?? '',
+        }, body));
+        req.response.statusCode = 200;
+        await req.response.close();
+      });
+      addTearDown(() => server.close(force: true));
+      final (token, _, _) = await api.register();
+      final hook = await api.post('/integrations/webhooks', {
+        'url': 'http://127.0.0.1:${server.port}/hook',
+        'events': ['punch.created', 'request.created'],
+      }, token: token);
+      expect(hook.status, 201, reason: '$hook');
+      final secret = hook.json['secret'] as String;
+      final test = await api.post('/integrations/webhooks/${hook.json['id']}/test', {}, token: token);
+      expect(test.json['ok'], isTrue);
+      await api.post('/punches', {'source': 'browser'}, token: token);
+      await Future.wait([...api.app.webhooks.pending]);
+      final punchEvent = received.firstWhere((r) => r.$1['event'] == 'punch.created');
+      final expected = Hmac(sha256, utf8.encode(secret)).convert(utf8.encode(punchEvent.$2)).toString();
+      expect(punchEvent.$1['signature'], 'sha256=$expected');
+      final payload = jsonDecode(punchEvent.$2) as Map;
+      expect(payload['data']['nsr'], isNotNull);
+      final bad = await api.post('/integrations/webhooks', {'url': 'ftp://x', 'events': ['punch.created']}, token: token);
+      expect(bad.status, 400);
+      final hooks = await api.get('/integrations/webhooks', token: token);
+      expect(hooks.list.single['last_status'], 200);
     });
   });
 

@@ -10,6 +10,7 @@ import 'features/employee/home_page.dart';
 import 'features/kiosk/kiosk_pages.dart';
 import 'features/manager/approvals_reports.dart';
 import 'features/manager/dashboard_page.dart';
+import 'features/manager/integrations_page.dart';
 import 'features/manager/schedule_pages.dart';
 import 'features/manager/settings_pages.dart';
 import 'features/manager/team_pages.dart';
@@ -42,6 +43,7 @@ const _managerOnly = [
   '/cadastros',
   '/empresa',
   '/auditoria',
+  '/integracoes',
 ];
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -163,6 +165,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/cadastros', builder: (_, _) => const CatalogsPage()),
           GoRoute(path: '/empresa', builder: (_, _) => const CompanyPage()),
           GoRoute(path: '/auditoria', builder: (_, _) => const AuditPage()),
+          GoRoute(
+            path: '/integracoes',
+            builder: (_, _) => const IntegrationsPage(),
+          ),
         ],
       ),
     ],

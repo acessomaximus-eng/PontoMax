@@ -170,6 +170,7 @@ class MemberRoutes {
           '${showPassword ? ' e a senha provisória: $password' : newUser ? '' : ' e a sua senha atual'}.\n\n'
           'Baixe também o aplicativo PontoMax no seu celular.',
     );
+    app.webhooks.dispatch(ctx.companyId, 'member.created', map.member(row));
     return created({
       ...map.member(row),
       if (showPassword) 'temporary_password': password,
@@ -321,7 +322,9 @@ class MemberRoutes {
       await app.audit.log(
           db: tx, companyId: ctx.companyId, userId: ctx.user.id, action: 'dismiss', entity: 'member', entityId: id, data: body);
     });
-    return jsonResponse(map.member(await _load(ctx.companyId, id)));
+    final dismissed = map.member(await _load(ctx.companyId, id));
+    app.webhooks.dispatch(ctx.companyId, 'member.dismissed', dismissed);
+    return jsonResponse(dismissed);
   }
 
   Future<Response> _reactivate(Request req, String id) async {

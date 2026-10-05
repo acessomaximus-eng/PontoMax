@@ -349,4 +349,32 @@ CREATE TABLE period_closings (
 );
 CREATE INDEX period_closings_company_idx ON period_closings (company_id, start_date, end_date);
 '''),
+  (3, 'integrações: chaves de API e webhooks', r'''
+CREATE TABLE api_keys (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  prefix text NOT NULL UNIQUE,
+  key_hash text NOT NULL,
+  created_by uuid NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  last_used_at timestamptz,
+  revoked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX api_keys_company_idx ON api_keys (company_id);
+
+CREATE TABLE webhooks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  url text NOT NULL,
+  events text[] NOT NULL,
+  secret text NOT NULL,
+  active boolean NOT NULL DEFAULT true,
+  last_status integer,
+  last_error text,
+  last_delivery_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX webhooks_company_idx ON webhooks (company_id);
+'''),
 ];

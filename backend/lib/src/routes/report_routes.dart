@@ -259,6 +259,7 @@ class ReportRoutes {
     await app.audit.log(companyId: ctx.companyId, userId: ctx.user.id, action: 'close', entity: 'period',
         entityId: row!['id'] as String, data: body, ip: req.clientIp);
     final full = (await app.closings.overlapping(ctx.companyId, from, to)).first;
+    app.webhooks.dispatch(ctx.companyId, 'period.closed', app.closings.toJson(full));
     return created(app.closings.toJson(full));
   }
 

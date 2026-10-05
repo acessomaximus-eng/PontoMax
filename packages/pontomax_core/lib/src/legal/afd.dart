@@ -289,7 +289,8 @@ class AfdGenerator {
       final fields = raw.substring(0, 73);
       final hash = raw.substring(73, 137);
       if (previous != null) {
-        final expected = sha256.convert(utf8.encode('$fields$previous')).toString();
+        final expected =
+            sha256.convert(utf8.encode('$fields$previous')).toString();
         if (expected != hash) broken.add(int.parse(raw.substring(0, 9)));
       }
       previous = hash;

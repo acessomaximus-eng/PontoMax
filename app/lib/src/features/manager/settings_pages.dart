@@ -901,6 +901,7 @@ class _CompanyPageState extends ConsumerState<CompanyPage> {
     bool? showBankToEmployee,
     bool? requireTimesheetSignature,
     String? managerScope,
+    int? bankValidityMonths,
   }) {
     final s = _settings!;
     return CompanySettings(
@@ -920,6 +921,7 @@ class _CompanyPageState extends ConsumerState<CompanyPage> {
       requireTimesheetSignature:
           requireTimesheetSignature ?? s.requireTimesheetSignature,
       managerScope: managerScope ?? s.managerScope,
+      bankValidityMonths: bankValidityMonths ?? s.bankValidityMonths,
     );
   }
 
@@ -1090,6 +1092,37 @@ class _CompanyPageState extends ConsumerState<CompanyPage> {
                 Card(
                   child: Column(
                     children: [
+                      ListTile(
+                        title: const Text('Validade do banco de horas'),
+                        subtitle: const Text(
+                          '6 meses: acordo individual; 12 meses: acordo coletivo. Créditos vencidos devem ser pagos como hora extra.',
+                        ),
+                        trailing: DropdownButton<int>(
+                          value:
+                              const [0, 3, 6, 12].contains(s.bankValidityMonths)
+                              ? s.bankValidityMonths
+                              : 0,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 0,
+                              child: Text('Sem validade'),
+                            ),
+                            DropdownMenuItem(value: 3, child: Text('3 meses')),
+                            DropdownMenuItem(
+                              value: 6,
+                              child: Text('6 meses'),
+                            ),
+                            DropdownMenuItem(
+                              value: 12,
+                              child: Text('12 meses'),
+                            ),
+                          ],
+                          onChanged: admin
+                              ? (v) =>
+                                    _saveSettings(_copy(bankValidityMonths: v))
+                              : null,
+                        ),
+                      ),
                       ListTile(
                         title: const Text('Dia de fechamento do ponto'),
                         subtitle: Text(

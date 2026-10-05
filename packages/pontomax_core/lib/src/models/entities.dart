@@ -134,6 +134,10 @@ class CompanySettings {
   /// subordinados diretos). Proprietários e administradores sempre veem tudo.
   final String managerScope;
 
+  /// Validade dos créditos do banco de horas em meses (0 = sem validade;
+  /// 6 = acordo individual, art. 59 §5º; 12 = acordo/convenção coletiva).
+  final int bankValidityMonths;
+
   const CompanySettings({
     this.requirePhoto = false,
     this.requireGeofence = false,
@@ -149,6 +153,7 @@ class CompanySettings {
     this.showBankToEmployee = true,
     this.requireTimesheetSignature = true,
     this.managerScope = 'all',
+    this.bankValidityMonths = 0,
   });
 
   factory CompanySettings.fromJson(Json j) => CompanySettings(
@@ -166,6 +171,7 @@ class CompanySettings {
         showBankToEmployee: _b(j['show_bank_to_employee'], true),
         requireTimesheetSignature: _b(j['require_timesheet_signature'], true),
         managerScope: _sn(j['manager_scope']) == 'team' ? 'team' : 'all',
+        bankValidityMonths: _i(j['bank_validity_months']).clamp(0, 24),
       );
 
   Json toJson() => {
@@ -183,6 +189,7 @@ class CompanySettings {
         'show_bank_to_employee': showBankToEmployee,
         'require_timesheet_signature': requireTimesheetSignature,
         'manager_scope': managerScope,
+        'bank_validity_months': bankValidityMonths,
       };
 
   /// Período de apuração que contém [date], respeitando o dia de fechamento.
@@ -247,7 +254,8 @@ class Company {
         timezone: _sn(j['timezone']) ?? 'America/Sao_Paulo',
         utcOffsetMinutes: _i(j['utc_offset_minutes'], -180),
         settings: CompanySettings.fromJson(_m(j['settings'])),
-        defaultScheduleId: _sn(j['default_schedule_id']) ?? _sn(_m(j['settings'])['default_schedule_id']),
+        defaultScheduleId: _sn(j['default_schedule_id']) ??
+            _sn(_m(j['settings'])['default_schedule_id']),
         createdAt: _dt(j['created_at']),
       );
 

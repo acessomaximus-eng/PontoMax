@@ -6,6 +6,7 @@
 /// * Entidades do contrato da API.
 library;
 
+export 'src/engine/bank_ledger.dart';
 export 'src/engine/calculator.dart';
 export 'src/engine/holidays_br.dart';
 export 'src/engine/schedule.dart';

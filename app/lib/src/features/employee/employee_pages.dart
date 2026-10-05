@@ -284,6 +284,34 @@ class BankView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+              if ((data['validity_months'] as int? ?? 0) > 0 &&
+                  ((data['expired'] as int? ?? 0) > 0 ||
+                      (data['expiring_soon'] as int? ?? 0) > 0))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ResponsiveGrid(
+                    minItemWidth: 220,
+                    children: [
+                      if ((data['expired'] as int) > 0)
+                        StatCard(
+                          label: 'Vencido — a pagar como extra',
+                          value: hm(data['expired'] as int),
+                          icon: Icons.event_busy_outlined,
+                          color: AppColors.danger,
+                          hint:
+                              'Validade de ${data['validity_months']} meses (art. 59 CLT)',
+                        ),
+                      if ((data['expiring_soon'] as int) > 0)
+                        StatCard(
+                          label: 'Vence nos próximos 30 dias',
+                          value: hm(data['expiring_soon'] as int),
+                          icon: Icons.hourglass_bottom,
+                          color: AppColors.warning,
+                          hint: 'Compense ou registre o pagamento',
+                        ),
+                    ],
+                  ),
+                ),
               ResponsiveGrid(
                 minItemWidth: 180,
                 children: [

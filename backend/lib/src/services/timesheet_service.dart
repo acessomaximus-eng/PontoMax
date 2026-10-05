@@ -26,8 +26,13 @@ class BankSummary {
   final Map<String, int> monthly;
   final LocalDate since;
   final List<Row> entries;
-  const BankSummary(this.initial, this.computed, this.manual, this.monthly, this.since, this.entries);
-  int get balance => initial + computed + manual;
+  final BankLedgerResult ledger;
+  final int validityMonths;
+  const BankSummary(this.initial, this.computed, this.manual, this.monthly, this.since, this.entries, this.ledger,
+      this.validityMonths);
+
+  /// Saldo atual (sem os créditos vencidos, que devem ser pagos).
+  int get balance => ledger.balance;
 }
 
 /// Adapta o motor de cálculo do núcleo aos dados do banco.
@@ -163,6 +168,7 @@ class TimesheetService {
     if (since < limit) since = limit;
 
     final monthly = <String, int>{};
+    final movements = <BankMovement>[];
     var computed = 0;
     var cursor = since;
     while (cursor <= today) {
@@ -172,6 +178,7 @@ class TimesheetService {
       for (final d in result.days) {
         if (d.bankDelta == 0) continue;
         computed += d.bankDelta;
+        movements.add(BankMovement(d.date, d.bankDelta));
         final key = d.date.toString().substring(0, 7);
         monthly[key] = (monthly[key] ?? 0) + d.bankDelta;
       }
@@ -187,10 +194,19 @@ class TimesheetService {
     var manual = 0;
     for (final e in entries) {
       manual += e['minutes'] as int;
+      movements.add(BankMovement(
+        LocalDate.fromDateTime(e['date'] as DateTime),
+        e['minutes'] as int,
+        payment: e['type'] == BankEntryType.payment.code,
+      ));
       final key = LocalDate.fromDateTime(e['date'] as DateTime).toString().substring(0, 7);
       monthly[key] = (monthly[key] ?? 0) + (e['minutes'] as int);
     }
-    return BankSummary(c.member['initial_bank_minutes'] as int? ?? 0, computed, manual, monthly, since, entries);
+    final initial = c.member['initial_bank_minutes'] as int? ?? 0;
+    if (initial != 0) movements.add(BankMovement(since, initial));
+    final validity = c.settings.bankValidityMonths;
+    final ledger = BankLedger.compute(movements, validityMonths: validity, today: today);
+    return BankSummary(initial, computed, manual, monthly, since, entries, ledger, validity);
   }
 
   /// Hash do espelho (para assinatura eletrônica do colaborador).

@@ -288,6 +288,7 @@ class ReportService {
         'department': m['department_name'],
         ...r.totals.toJson(),
         if (bank != null) 'bank_balance': bank.balance,
+        if (bank != null) 'bank_expired': bank.ledger.expired,
       });
     }
     return out;
@@ -309,7 +310,7 @@ class ReportService {
         'Nome', 'CPF', 'Matrícula', 'Departamento', 'Previsto', 'Trabalhado', 'Abonado',
         for (final rate in sortedRates) 'Extras $rate%',
         'Extras total', 'Faltas/atrasos', 'Noturno', 'Noturno reduzido', 'Banco no período',
-        'Saldo banco', 'Dias de falta', 'Inconsistências',
+        'Saldo banco', 'Banco vencido (a pagar)', 'Dias de falta', 'Inconsistências',
       ].join(';'));
     for (final r in rows) {
       final ot = (r['overtime'] as Map?) ?? {};
@@ -328,6 +329,7 @@ class ReportService {
         h(r['night_minutes_reduced']),
         h(r['bank_delta']),
         h(r['bank_balance']),
+        h(r['bank_expired']),
         r['absences'],
         r['issues'],
       ].join(';'));

@@ -481,7 +481,8 @@ class JourneyCalculator {
         bankDelta = balance;
       case CompensationRegime.hybrid:
         final toBank = math.min(positive, sched.hybridDailyBankLimit);
-        overtime.addAll(sched.splitOvertime(positive - toBank, restDay: isRestDay));
+        overtime
+            .addAll(sched.splitOvertime(positive - toBank, restDay: isRestDay));
         bankDelta = toBank - negative;
     }
 

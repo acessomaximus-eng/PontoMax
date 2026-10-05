@@ -116,11 +116,12 @@ class OvertimeBand {
 
   Map<String, Object?> toJson() => {'up_to': upTo, 'rate': rate};
 
-  factory OvertimeBand.fromJson(Map<String, Object?> j) =>
-      OvertimeBand((j['up_to'] as num?)?.toInt(), (j['rate'] as num?)?.toInt() ?? 50);
+  factory OvertimeBand.fromJson(Map<String, Object?> j) => OvertimeBand(
+      (j['up_to'] as num?)?.toInt(), (j['rate'] as num?)?.toInt() ?? 50);
 
   @override
-  bool operator ==(Object other) => other is OvertimeBand && other.upTo == upTo && other.rate == rate;
+  bool operator ==(Object other) =>
+      other is OvertimeBand && other.upTo == upTo && other.rate == rate;
 
   @override
   int get hashCode => Object.hash(upTo, rate);
@@ -299,7 +300,8 @@ class ScheduleDefinition {
     var consumed = 0;
     for (final b in overtimeBands) {
       if (remaining <= 0) break;
-      final cap = b.upTo == null ? remaining : (b.upTo! - consumed).clamp(0, remaining);
+      final cap =
+          b.upTo == null ? remaining : (b.upTo! - consumed).clamp(0, remaining);
       if (cap <= 0) continue;
       result[b.rate] = (result[b.rate] ?? 0) + cap;
       remaining -= cap;

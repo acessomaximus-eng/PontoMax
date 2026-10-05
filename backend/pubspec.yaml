@@ -1,0 +1,25 @@
+name: pontomax_backend
+description: API do PontoMax — controle de ponto eletrônico (REP-P).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  crypto: ^3.0.7
+  dart_jsonwebtoken: ^3.4.1
+  logging: ^1.3.0
+  mime: ^2.1.0
+  path: ^1.9.1
+  pdf: ^3.13.1
+  pontomax_core:
+    path: ../packages/pontomax_core
+  postgres: ^3.5.19
+  shelf: ^1.4.2
+  shelf_router: ^1.1.4
+  shelf_static: ^1.1.3
+dev_dependencies:
+  http: ^1.6.0
+  lints: ^6.1.0
+  test: ^1.32.0

@@ -1,0 +1,24 @@
+# Dart/Flutter
+.dart_tool/
+.packages
+build/
+*.iml
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.flutter-plugins
+.flutter-plugins-dependencies
+coverage/
+doc/api/
+
+# Backend
+backend/storage/
+storage/
+*.log
+.env
+.env.*
+!.env.example
+
+# SO
+.DS_Store
+Thumbs.db

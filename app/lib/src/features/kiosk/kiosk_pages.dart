@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontomax_core/pontomax_core.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/api_client.dart';
 import '../../services/offline_queue.dart';
@@ -90,6 +92,10 @@ class _KioskPageState extends ConsumerState<KioskPage> {
   Map<String, dynamic>? _success;
   String? _error;
   int _offset = -180;
+  List<Map<String, dynamic>> _queue = [];
+  bool _syncing = false;
+
+  static const _queueKey = 'pontomax.kiosk_queue';
 
   ApiClient get _api => ref.read(apiProvider);
 
@@ -101,6 +107,56 @@ class _KioskPageState extends ConsumerState<KioskPage> {
       (_) => mounted ? setState(() {}) : null,
     );
     _load();
+    _loadQueue();
+  }
+
+  Future<void> _loadQueue() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_queueKey);
+    if (raw == null || !mounted) return;
+    setState(
+      () => _queue = [
+        for (final e in jsonDecode(raw) as List)
+          (e as Map).cast<String, dynamic>(),
+      ],
+    );
+  }
+
+  Future<void> _saveQueue() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_queueKey, jsonEncode(_queue));
+  }
+
+  /// Envia marcações feitas sem conexão (idempotente por client_id).
+  Future<void> _syncQueue() async {
+    if (_syncing || _queue.isEmpty) return;
+    _syncing = true;
+    try {
+      for (final item in [..._queue]) {
+        final body = Map<String, dynamic>.of(item);
+        final photo = body.remove('photo') as String?;
+        try {
+          if (photo != null) {
+            final up = await _api.upload(
+              base64Decode(photo),
+              'image/jpeg',
+              'kiosk.jpg',
+              device: true,
+            );
+            body['photo_file_id'] = up['id'];
+          }
+          await _api.post('/kiosk/punch', {...body, 'offline': true}, true);
+        } on ApiException catch (e) {
+          if (e.isNetwork) break; // continua sem conexão
+          // Erro definitivo (PIN inválido, colaborador inativo...): descarta.
+        }
+        _queue.removeWhere((q) => q['client_id'] == item['client_id']);
+        await _saveQueue();
+        if (mounted) setState(() {});
+      }
+    } finally {
+      _syncing = false;
+    }
   }
 
   @override
@@ -127,10 +183,11 @@ class _KioskPageState extends ConsumerState<KioskPage> {
       });
       await _refreshQr();
       _qrTimer?.cancel();
-      _qrTimer = Timer.periodic(
-        const Duration(seconds: 20),
-        (_) => _refreshQr(),
-      );
+      _qrTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+        _refreshQr();
+        _syncQueue();
+      });
+      unawaited(_syncQueue());
     } on ApiException catch (e) {
       if (e.status == 401) {
         await ref.read(sessionProvider.notifier).deactivateKiosk();
@@ -160,10 +217,13 @@ class _KioskPageState extends ConsumerState<KioskPage> {
 
   Future<void> _punch(Map<String, dynamic> identity) async {
     setState(() => _busy = true);
+    final clientId = newClientId();
+    final instant = ServerClock.nowUtc();
+    Uint8List? photo;
     try {
       String? photoId;
       if ((_info?['company'] as Map?)?['require_photo'] == true) {
-        final photo = await PhotoService.selfie();
+        photo = await PhotoService.selfie();
         if (photo == null) {
           throw const ApiException(
             422,
@@ -181,7 +241,7 @@ class _KioskPageState extends ConsumerState<KioskPage> {
       }
       final r = await _api.post('/kiosk/punch', {
         ...identity,
-        'client_id': newClientId(),
+        'client_id': clientId,
         'photo_file_id': ?photoId,
       }, true) as Map;
       setState(() {
@@ -193,6 +253,29 @@ class _KioskPageState extends ConsumerState<KioskPage> {
         () => mounted ? setState(() => _success = null) : null,
       );
     } on ApiException catch (e) {
+      if (e.isNetwork) {
+        // Sem internet: guarda com o horário sincronizado e envia depois.
+        _queue.add({
+          ...identity,
+          'client_id': clientId,
+          'punched_at': instant.toIso8601String(),
+          'photo': ?(photo == null ? null : base64Encode(photo)),
+        });
+        await _saveQueue();
+        if (!mounted) return;
+        setState(() {
+          _success = {
+            'name': 'Registrado sem internet',
+            'offline_time': TimeFmt.clock(TimeFmt.toWall(instant, _offset)),
+          };
+          _reset();
+        });
+        Future<void>.delayed(
+          const Duration(seconds: 6),
+          () => mounted ? setState(() => _success = null) : null,
+        );
+        return;
+      }
       if (mounted) {
         showSnack(context, e.message, error: true);
         setState(() {
@@ -311,6 +394,14 @@ class _KioskPageState extends ConsumerState<KioskPage> {
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white70),
           ),
+          if (_queue.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Chip(
+                avatar: const Icon(Icons.cloud_upload_outlined, size: 18),
+                label: Text('${_queue.length} marcação(ões) aguardando envio'),
+              ),
+            ),
           if (device.isNotEmpty) ...[
             const SizedBox(height: 16),
             Text(
@@ -470,17 +561,21 @@ class _KioskPageState extends ConsumerState<KioskPage> {
                         textAlign: TextAlign.center,
                       ),
                       Text(
-                        'Ponto registrado às ${TimeFmt.clock(Punch.fromJson(((_success!['punch']) as Map).cast()).wall)}',
+                        _success!['punch'] == null
+                            ? 'Marcação das ${_success!['offline_time']} guardada; será enviada quando a conexão voltar'
+                            : 'Ponto registrado às ${TimeFmt.clock(Punch.fromJson(((_success!['punch']) as Map).cast()).wall)}',
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        'NSR ${(_success!['receipt'] as Map)['nsr']}',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
+                      if (_success!['receipt'] != null)
+                        Text(
+                          'NSR ${(_success!['receipt'] as Map)['nsr']}',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
                     ],
                   ),
                 ),

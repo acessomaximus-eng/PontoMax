@@ -336,4 +336,17 @@ CREATE TABLE audit_logs (
 );
 CREATE INDEX audit_company_idx ON audit_logs (company_id, created_at DESC);
 '''),
+  (2, 'fechamento de período', r'''
+CREATE TABLE period_closings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  closed_by uuid REFERENCES members(id) ON DELETE SET NULL,
+  note text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (end_date >= start_date)
+);
+CREATE INDEX period_closings_company_idx ON period_closings (company_id, start_date, end_date);
+'''),
 ];

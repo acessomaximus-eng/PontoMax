@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontomax_core/pontomax_core.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../config.dart';
 import '../../state/session.dart';
@@ -478,6 +479,22 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             'Li e aceito os termos de uso e a política de privacidade (LGPD).',
             style: TextStyle(fontSize: 13),
           ),
+        ),
+        Wrap(
+          spacing: 4,
+          children: [
+            TextButton(
+              onPressed: () =>
+                  launchUrl(Uri.parse('${AppConfig.serverOrigin}/termos.html')),
+              child: const Text('Termos de uso'),
+            ),
+            TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse('${AppConfig.serverOrigin}/privacidade.html'),
+              ),
+              child: const Text('Política de privacidade'),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         FilledButton(

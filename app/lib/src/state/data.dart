@@ -185,3 +185,7 @@ final signaturesProvider = FutureProvider.autoDispose<List<TimesheetSignature>>(
     return [for (final s in list) TimesheetSignature.fromJson(s)];
   },
 );
+
+final closingsProvider = FutureProvider.autoDispose<List<J>>((ref) async {
+  return ref.watch(apiProvider).getList('/closings');
+});

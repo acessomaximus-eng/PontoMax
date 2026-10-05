@@ -27,6 +27,9 @@ class ReportRoutes {
     ..get('/reports/punches.csv', _punchesCsv)
     ..get('/reports/afd', _afd)
     ..get('/reports/aej', _aej)
+    ..get('/closings', _listClosings)
+    ..post('/closings', _close)
+    ..delete('/closings/<id>', _reopen)
     ..get('/dashboard', _dashboard)
     ..get('/audit', _audit);
 
@@ -83,6 +86,7 @@ class ReportRoutes {
       'schedule': tsCtx.schedule.toJson(),
       'period_key': _periodKey(from, to),
       'signature': signature == null ? null : map.signature(signature),
+      'closings': [for (final c in await app.closings.overlapping(ctx.companyId, from, to)) app.closings.toJson(c)],
       'punch_details': [for (final r in punchRows) map.punch(r, tsCtx.offset)],
     });
   }
@@ -226,6 +230,47 @@ class ReportRoutes {
     final doc = Documents.onlyAlnum(company['document'] as String?);
     return fileResponse(ReportService.latin1Bytes(content),
         contentType: 'text/plain; charset=iso-8859-1', filename: 'AEJ_$doc${from.toString().replaceAll('-', '')}.txt');
+  }
+
+  Future<Response> _listClosings(Request req) async {
+    final ctx = await app.sessions.member(req);
+    ctx.requireManager();
+    final rows = await app.closings.overlapping(ctx.companyId, const LocalDate(2000, 1, 1), const LocalDate(2100, 1, 1));
+    return jsonResponse([for (final r in rows.reversed) app.closings.toJson(r)]);
+  }
+
+  /// Fecha o período para tratamento (folha enviada).
+  Future<Response> _close(Request req) async {
+    final ctx = await app.sessions.member(req);
+    ctx.requireManager();
+    final body = await readJson(req);
+    final from = body.date('from');
+    final to = body.date('to');
+    if (to < from) throw const ApiError.badRequest('Período inválido');
+    final today = LocalDate.fromDateTime(TimeFmt.toWall(app.now(), ctx.offset));
+    if (to >= today) throw const ApiError.badRequest('Só é possível fechar períodos já encerrados');
+    if ((await app.closings.overlapping(ctx.companyId, from, to)).isNotEmpty) {
+      throw const ApiError.conflict('Parte deste período já está fechada');
+    }
+    final row = await app.db.one(
+      'INSERT INTO period_closings (company_id, start_date, end_date, closed_by, note) VALUES (@c, @f, @t, @by, @n) RETURNING id',
+      {'c': ctx.companyId, 'f': from.toString(), 't': to.toString(), 'by': ctx.memberId, 'n': body.optStr('note')},
+    );
+    await app.audit.log(companyId: ctx.companyId, userId: ctx.user.id, action: 'close', entity: 'period',
+        entityId: row!['id'] as String, data: body, ip: req.clientIp);
+    final full = (await app.closings.overlapping(ctx.companyId, from, to)).first;
+    return created(app.closings.toJson(full));
+  }
+
+  /// Reabre um período (somente administradores; fica na auditoria).
+  Future<Response> _reopen(Request req, String id) async {
+    final ctx = await app.sessions.member(req);
+    ctx.requireAdmin();
+    final n = await app.db.execute('DELETE FROM period_closings WHERE id = @id AND company_id = @c',
+        {'id': requireUuid(id), 'c': ctx.companyId});
+    if (n == 0) throw const ApiError.notFound();
+    await app.audit.log(companyId: ctx.companyId, userId: ctx.user.id, action: 'reopen', entity: 'period', entityId: id, ip: req.clientIp);
+    return noContent();
   }
 
   /// Indicadores do dia para o gestor.

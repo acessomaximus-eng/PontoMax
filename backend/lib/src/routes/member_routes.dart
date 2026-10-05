@@ -89,13 +89,13 @@ class MemberRoutes {
     final generatedPassword = password == null;
     password ??= temporaryPassword();
 
+    var newUser = false;
     final row = await app.db.tx((tx) async {
       var user = await tx.one('SELECT * FROM users WHERE lower(email) = @e', {'e': email});
       final cpfOwner = await tx.one('SELECT id FROM users WHERE cpf = @cpf', {'cpf': cpf});
       if (cpfOwner != null && cpfOwner['id'] != user?['id']) {
         throw const ApiError.conflict('Este CPF já está vinculado a outro usuário');
       }
-      var newUser = false;
       if (user == null) {
         user = await tx.one(
           'INSERT INTO users (name, email, cpf, phone, password_hash) VALUES (@n, @e, @cpf, @ph, @p) RETURNING *',
@@ -159,18 +159,21 @@ class MemberRoutes {
       return (await tx.one('$memberSelectSql WHERE m.id = @id', {'id': memberId}))!;
     });
 
+    // Usuário já existente (outra empresa) mantém a própria senha.
+    final showPassword = generatedPassword && newUser;
     final companyName = ctx.company['name'];
     await app.mailer.send(
       to: email,
       subject: 'Você foi convidado para o PontoMax — $companyName',
       text: 'Olá, $name!\n\n$companyName cadastrou você no PontoMax para registro de ponto.\n'
           'Acesse ${app.config.publicUrl}/app e entre com o e-mail $email'
-          '${generatedPassword ? ' e a senha provisória: $password' : ''}.\n\n'
+          '${showPassword ? ' e a senha provisória: $password' : newUser ? '' : ' e a sua senha atual'}.\n\n'
           'Baixe também o aplicativo PontoMax no seu celular.',
     );
     return created({
       ...map.member(row),
-      if (generatedPassword) 'temporary_password': password,
+      if (showPassword) 'temporary_password': password,
+      'existing_user': !newUser,
     });
   }
 

@@ -345,6 +345,7 @@ class _MemberInfo extends ConsumerWidget {
                   ],
                 ),
               ),
+              _MemberAbsences(memberId: m.id),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 8,
@@ -851,4 +852,77 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
     ],
     onChanged: onChanged,
   );
+}
+
+/// Ausências, abonos, atestados e férias lançados para o colaborador.
+class _MemberAbsences extends ConsumerWidget {
+  final String memberId;
+  const _MemberAbsences({required this.memberId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final data = ref.watch(absencesProvider(memberId));
+    final list = data.value ?? const <AbsenceEntity>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionTitle('Ausências e abonos'),
+        if (list.isEmpty)
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.event_available_outlined),
+              title: Text('Nenhuma ausência lançada'),
+              subtitle: Text(
+                'Lance abonos, atestados e folgas pelo espelho de ponto (toque no dia).',
+              ),
+            ),
+          )
+        else
+          Card(
+            child: Column(
+              children: [
+                for (final a in list)
+                  ListTile(
+                    leading: const Icon(Icons.healing_outlined),
+                    title: Text(a.type.label),
+                    subtitle: Text(
+                      [
+                        a.startDate == a.endDate
+                            ? a.startDate.toBr()
+                            : '${a.startDate.toBr()} a ${a.endDate.toBr()}',
+                        if (a.minutesPerDay != null)
+                          '${hm(a.minutesPerDay!)}/dia',
+                        if (a.reason.isNotEmpty) a.reason,
+                      ].join(' • '),
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Excluir',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        if (!await confirm(
+                          context,
+                          'Excluir lançamento',
+                          'Remover "${a.type.label}"?',
+                          destructive: true,
+                        )) {
+                          return;
+                        }
+                        if (!context.mounted) return;
+                        await runAction(
+                          context,
+                          () =>
+                              ref.read(apiProvider).delete('/absences/${a.id}'),
+                          success: 'Lançamento excluído',
+                        );
+                        ref.invalidate(absencesProvider(memberId));
+                        ref.invalidate(timesheetProvider);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }

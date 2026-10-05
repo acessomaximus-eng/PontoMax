@@ -26,7 +26,7 @@ COPY backend/pubspec.* ./backend/
 WORKDIR /src/backend
 RUN dart pub get
 COPY backend ./
-RUN dart compile exe bin/server.dart -o /out/server
+RUN mkdir -p /out && dart compile exe bin/server.dart -o /out/server
 
 # 3) Runtime mínimo
 FROM debian:bookworm-slim

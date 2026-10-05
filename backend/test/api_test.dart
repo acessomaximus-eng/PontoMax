@@ -346,6 +346,73 @@ void main() {
     });
   });
 
+  group('Segurança', () {
+    test('PIN do quiosque bloqueia após 5 erros', () async {
+      final (owner, company, _) = await api.register();
+      await api.post('/members', {
+        'name': 'Rui', 'email': 'rui@empresa.com', 'cpf': '11144477735', 'password': 'senha1234',
+        'registration': '9', 'pin': '2468',
+      }, token: owner, company: company);
+      final dev = await api.post('/devices', {'name': 'Tablet'}, token: owner);
+      final act = await api.post('/kiosk/activate', {'code': dev.json['activation_code']});
+      final deviceToken = act.json['device_token'] as String;
+      for (var i = 0; i < 5; i++) {
+        final r = await api.post('/kiosk/identify', {'identifier': '9', 'pin': '0000'}, device: deviceToken);
+        expect(r.status, 401);
+      }
+      final blocked = await api.post('/kiosk/identify', {'identifier': '9', 'pin': '2468'}, device: deviceToken);
+      expect(blocked.status, 429);
+      api.clock.advance(const Duration(minutes: 11));
+      final ok = await api.post('/kiosk/identify', {'identifier': '9', 'pin': '2468'}, device: deviceToken);
+      expect(ok.status, 200);
+      expect(ok.json['name'], 'Rui');
+    });
+
+    test('usuário de outra empresa é vinculado sem senha provisória', () async {
+      final (ownerA, _, _) = await api.register(email: 'a@a.com', company: 'Empresa A');
+      final (ownerB, _, _) = await api.register(email: 'b@b.com', company: 'Empresa B', cpf: '39053344705');
+      final first = await api.post('/members', {'name': 'Zé', 'email': 'ze@x.com', 'cpf': '86288366757'}, token: ownerA);
+      expect(first.json['temporary_password'], isNotNull);
+      final second = await api.post('/members', {'name': 'Zé', 'email': 'ze@x.com', 'cpf': '86288366757'}, token: ownerB);
+      expect(second.status, 201, reason: '$second');
+      expect(second.json['temporary_password'], isNull);
+      expect(second.json['existing_user'], isTrue);
+      final ze = await api.login('ze@x.com', first.json['temporary_password'] as String);
+      final me = await api.get('/me', token: ze);
+      expect((me.json['memberships'] as List).length, 2);
+    });
+  });
+
+  group('Fechamento de período', () {
+    test('bloqueia tratamento até a reabertura', () async {
+      final (token, company, member) = await api.register();
+      api.clock.brt(2026, 11, 3, 9);
+      final close = await api.post('/closings', {'from': '2026-10-01', 'to': '2026-10-31'}, token: token);
+      expect(close.status, 201, reason: '$close');
+      final blocked = await api.post('/punches/manual', {
+        'member_id': member, 'date': '2026-10-02', 'time': '08:00', 'reason': 'x',
+      }, token: token, company: company);
+      expect(blocked.status, 409);
+      expect(blocked.json['error']['code'], 'period_closed');
+      final bank = await api.post('/bank/entries', {'member_id': member, 'type': 'credit', 'minutes': 30, 'date': '2026-10-10'}, token: token);
+      expect(bank.json['error']['code'], 'period_closed');
+      final ts = await api.get('/timesheet?from=2026-10-01&to=2026-10-31', token: token);
+      expect((ts.json['closings'] as List).length, 1);
+      // Fora do período fechado continua liberado.
+      final ok = await api.post('/punches/manual', {
+        'member_id': member, 'date': '2026-11-02', 'time': '08:00', 'reason': 'x',
+      }, token: token);
+      expect(ok.status, 201);
+      expect((await api.post('/closings', {'from': '2026-10-15', 'to': '2026-11-01'}, token: token)).status, 409);
+      final reopen = await api.delete('/closings/${close.json['id']}', token: token);
+      expect(reopen.status, 204);
+      final after = await api.post('/punches/manual', {
+        'member_id': member, 'date': '2026-10-02', 'time': '08:00', 'reason': 'x',
+      }, token: token);
+      expect(after.status, 201);
+    });
+  });
+
   group('Chat e notas', () {
     test('mensagens entre colaborador e gestor com long-polling', () async {
       final (owner, company, ownerMember) = await api.register();

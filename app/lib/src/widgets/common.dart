@@ -527,7 +527,9 @@ class ResponsiveGrid extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, c) {
       // Em telas estreitas (celular), ao menos 2 colunas para cartões compactos.
-      final min = c.maxWidth < 600 ? minItemWidth.clamp(0, c.maxWidth / 2 - spacing) : minItemWidth;
+      final min = c.maxWidth < 600
+          ? minItemWidth.clamp(0, c.maxWidth / 2 - spacing)
+          : minItemWidth;
       final columns = (c.maxWidth / min).floor().clamp(1, 6);
       final width = (c.maxWidth - spacing * (columns - 1)) / columns;
       return Wrap(

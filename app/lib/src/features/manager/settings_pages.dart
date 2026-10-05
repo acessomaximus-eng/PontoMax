@@ -1202,6 +1202,7 @@ class _AuditPageState extends ConsumerState<AuditPage> {
     'settings': 'Configurações',
     'afd': 'AFD',
     'timesheet': 'Assinaturas',
+    'period': 'Períodos',
   };
 
   static const _actions = {
@@ -1220,6 +1221,8 @@ class _AuditPageState extends ConsumerState<AuditPage> {
     'reset_password': 'redefiniu a senha de',
     'set_pin': 'definiu o PIN de',
     'activate': 'ativou',
+    'close': 'fechou',
+    'reopen': 'reabriu',
   };
 
   @override

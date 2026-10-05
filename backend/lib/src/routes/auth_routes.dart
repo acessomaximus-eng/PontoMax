@@ -8,29 +8,13 @@ import '../auth/session.dart';
 import '../db/database.dart';
 import '../http/http_utils.dart';
 import '../http/mappers.dart';
-
-/// Limita tentativas de login por IP+e-mail.
-class _RateLimiter {
-  final int max;
-  final Duration window;
-  final _hits = <String, List<DateTime>>{};
-  _RateLimiter(this.max, this.window);
-
-  void check(String key, DateTime now) {
-    final list = _hits.putIfAbsent(key, () => [])..removeWhere((t) => now.difference(t) > window);
-    if (list.length >= max) {
-      throw const ApiError(429, 'too_many_requests', 'Muitas tentativas. Aguarde um minuto e tente novamente.');
-    }
-    list.add(now);
-    if (_hits.length > 10000) _hits.clear();
-  }
-
-  void reset(String key) => _hits.remove(key);
-}
+import '../http/rate_limiter.dart';
 
 class AuthRoutes {
   final App app;
-  final _limiter = _RateLimiter(8, const Duration(minutes: 1));
+  final _limiter = RateLimiter(8, const Duration(minutes: 1));
+  final _signupLimiter = RateLimiter(5, const Duration(hours: 1),
+      message: 'Muitos cadastros a partir deste endereço. Tente novamente mais tarde.');
   AuthRoutes(this.app);
 
   Mappers get map => Mappers(app);
@@ -49,6 +33,7 @@ class AuthRoutes {
 
   /// Cria empresa + usuário proprietário (onboarding / teste grátis).
   Future<Response> _register(Request req) async {
+    _signupLimiter.check('signup|${req.clientIp}', app.now());
     final body = await readJson(req);
     final companyName = body.str('company_name', label: 'nome da empresa');
     final name = body.str('name', label: 'seu nome');

@@ -3,6 +3,7 @@ import 'auth/session.dart';
 import 'config.dart';
 import 'db/database.dart';
 import 'services/audit_service.dart';
+import 'services/closing_service.dart';
 import 'services/event_bus.dart';
 import 'services/mailer.dart';
 import 'services/notification_service.dart';
@@ -27,6 +28,7 @@ class App {
   late final PunchService punches = PunchService(this);
   late final TimesheetService timesheets = TimesheetService(this);
   late final ReportService reports = ReportService(this);
+  late final ClosingService closings = ClosingService(this);
 
   App(this.config, this.db, {DateTime Function()? clock})
       : _clock = clock ?? (() => DateTime.now().toUtc());

@@ -394,12 +394,18 @@ class _KioskPageState extends ConsumerState<KioskPage> {
                         backgroundColor: k == 'OK' ? AppColors.accent : null,
                         foregroundColor: k == 'OK' ? Colors.white : null,
                         textStyle: const TextStyle(
+                          fontFamily: 'NotoSans',
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       onPressed: _busy ? null : () => _key(k),
-                      child: Text(k),
+                      child: k == '⌫'
+                          ? const Icon(
+                              Icons.backspace_outlined,
+                              semanticLabel: 'Apagar',
+                            )
+                          : Text(k),
                     ),
                 ],
               ),

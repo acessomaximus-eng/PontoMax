@@ -7,6 +7,7 @@ import '../auth/crypto_utils.dart';
 import '../db/database.dart';
 import '../http/http_utils.dart';
 import '../http/mappers.dart';
+import '../http/rate_limiter.dart';
 import '../services/punch_service.dart';
 import 'punch_routes.dart';
 
@@ -15,6 +16,10 @@ import 'punch_routes.dart';
 /// marcação pelo celular do colaborador.
 class KioskRoutes {
   final App app;
+
+  /// Bloqueia força bruta de PIN: 5 erros por colaborador/dispositivo a cada 10 min.
+  final _pinLimiter = RateLimiter(5, const Duration(minutes: 10),
+      message: 'Muitas tentativas de PIN. Aguarde 10 minutos ou procure o gestor.');
   KioskRoutes(this.app);
   Mappers get map => Mappers(app);
 
@@ -97,7 +102,7 @@ class KioskRoutes {
   }
 
   /// Identifica o colaborador por crachá/QR pessoal, ou por matrícula/CPF + PIN.
-  Future<Row> _resolve(String companyId, Map<String, dynamic> body) async {
+  Future<Row> _resolve(String companyId, Map<String, dynamic> body, {String? deviceId}) async {
     final badge = body.optStr('badge_code');
     if (badge != null) {
       final m = await app.db.one(
@@ -112,6 +117,8 @@ class KioskRoutes {
     final identifier = body.optStr('identifier');
     if (memberId == null && identifier == null) throw const ApiError.badRequest('Informe o colaborador');
     final digits = Documents.onlyDigits(identifier);
+    final limiterKey = '$deviceId|${memberId ?? identifier}';
+    _pinLimiter.ensure(limiterKey, app.now());
     final m = await app.db.one(
       '''
       SELECT m.id, m.pin_hash, u.name FROM members m JOIN users u ON u.id = m.user_id
@@ -122,21 +129,23 @@ class KioskRoutes {
       {'c': companyId, 'id': memberId, 'ident': identifier, 'digits': digits},
     );
     if (m == null || !app.passwords.verify(pin, m['pin_hash'] as String?)) {
+      _pinLimiter.fail(limiterKey, app.now());
       throw const ApiError(401, 'invalid_pin', 'Colaborador ou PIN incorreto');
     }
+    _pinLimiter.reset(limiterKey);
     return m;
   }
 
   Future<Response> _identify(Request req) async {
     final dev = await app.sessions.device(req);
-    final m = await _resolve(dev.companyId, await readJson(req));
+    final m = await _resolve(dev.companyId, await readJson(req), deviceId: dev.deviceId);
     return jsonResponse({'member_id': m['id'], 'name': m['name']});
   }
 
   Future<Response> _punch(Request req) async {
     final dev = await app.sessions.device(req);
     final body = await readJson(req);
-    final m = await _resolve(dev.companyId, body);
+    final m = await _resolve(dev.companyId, body, deviceId: dev.deviceId);
     final method = body.optStr('badge_code') != null ? PunchMethod.badge : PunchMethod.fromCode(body.optStr('method') ?? 'pin');
     final clientTime = body.optStr('punched_at') == null ? null : DateTime.tryParse(body.optStr('punched_at')!);
     final row = await app.punches.register(PunchInput(

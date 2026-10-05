@@ -268,6 +268,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     ),
                   ],
                 ),
+                _ClosingsSection(from: from, to: to),
                 const SectionTitle('Resumo por colaborador'),
                 AsyncView(
                   value: summary,
@@ -426,4 +427,109 @@ class _ExportCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// Fechamento de período (trava o tratamento do ponto após enviar a folha).
+class _ClosingsSection extends ConsumerWidget {
+  final LocalDate from;
+  final LocalDate to;
+  const _ClosingsSection({required this.from, required this.to});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(meProvider);
+    final data = ref.watch(closingsProvider);
+    final api = ref.read(apiProvider);
+    final today = LocalDate.fromDateTime(ServerClock.wall(me.offset));
+    final list = data.value ?? const [];
+    final closed = list.any(
+      (c) =>
+          LocalDate.parse(c['start_date'] as String) <= to &&
+          LocalDate.parse(c['end_date'] as String) >= from,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionTitle(
+          'Fechamento de período',
+          trailing: closed
+              ? const StatusChip(
+                  'Fechado',
+                  color: AppColors.info,
+                  icon: Icons.lock_outline,
+                )
+              : FilledButton.tonalIcon(
+                  onPressed: to >= today
+                      ? null
+                      : () async {
+                          final ok = await confirm(
+                            context,
+                            'Fechar período',
+                            'Após o fechamento de ${from.toBr()} a ${to.toBr()}, inclusões, desconsiderações, abonos, '
+                                'aprovações e lançamentos no banco de horas ficam bloqueados até a reabertura.',
+                            ok: 'Fechar período',
+                          );
+                          if (!ok || !context.mounted) return;
+                          await runAction(
+                            context,
+                            () => api.post('/closings', {
+                              'from': from.toString(),
+                              'to': to.toString(),
+                            }),
+                            success: 'Período fechado',
+                          );
+                          ref.invalidate(closingsProvider);
+                          ref.invalidate(timesheetProvider);
+                        },
+                  icon: const Icon(Icons.lock_outline),
+                  label: Text(
+                    to >= today ? 'Período em andamento' : 'Fechar período',
+                  ),
+                ),
+        ),
+        if (list.isNotEmpty)
+          Card(
+            child: Column(
+              children: [
+                for (final c in list.take(6))
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.lock_outline),
+                    title: Text(
+                      '${LocalDate.parse(c['start_date'] as String).toBr()} a '
+                      '${LocalDate.parse(c['end_date'] as String).toBr()}',
+                    ),
+                    subtitle: Text(
+                      'Fechado ${c['closed_by_name'] != null ? 'por ${c['closed_by_name']} ' : ''}'
+                      '${relativeTime(DateTime.parse(c['created_at'] as String))}',
+                    ),
+                    trailing: me.isAdmin
+                        ? TextButton(
+                            onPressed: () async {
+                              final ok = await confirm(
+                                context,
+                                'Reabrir período',
+                                'O tratamento do ponto voltará a ser permitido. A reabertura fica registrada na auditoria.',
+                                ok: 'Reabrir',
+                                destructive: true,
+                              );
+                              if (!ok || !context.mounted) return;
+                              await runAction(
+                                context,
+                                () => api.delete('/closings/${c['id']}'),
+                                success: 'Período reaberto',
+                              );
+                              ref.invalidate(closingsProvider);
+                              ref.invalidate(timesheetProvider);
+                            },
+                            child: const Text('Reabrir'),
+                          )
+                        : null,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }

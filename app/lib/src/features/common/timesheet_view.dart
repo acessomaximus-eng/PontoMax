@@ -114,7 +114,10 @@ class _TimesheetViewState extends ConsumerState<TimesheetView> {
                   onRetry: () => _refresh(q),
                   builder: (d) => _Content(
                     data: d,
-                    canTreat: widget.canTreat,
+                    // Período fechado: tratamento bloqueado até a reabertura.
+                    canTreat:
+                        widget.canTreat &&
+                        (d['closings'] as List? ?? const []).isEmpty,
                     isSelf:
                         widget.memberId == null ||
                         widget.memberId == me.member?.id,
@@ -256,9 +259,31 @@ class _Content extends ConsumerWidget {
     };
     final overtime = (totals['overtime'] as Map).cast<String, dynamic>();
     final schedule = (data['schedule'] as Map?)?.cast<String, dynamic>();
+    final closings = data['closings'] as List? ?? const [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (closings.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Card(
+              color: AppColors.info.withValues(alpha: 0.08),
+              child: ListTile(
+                leading: const Icon(Icons.lock_outline, color: AppColors.info),
+                title: const Text('Período fechado'),
+                subtitle: Text(
+                  closings
+                      .map(
+                        (c) =>
+                            '${LocalDate.parse((c as Map)['start_date'] as String).toBr()} a '
+                            '${LocalDate.parse(c['end_date'] as String).toBr()}'
+                            '${c['closed_by_name'] != null ? ' por ${c['closed_by_name']}' : ''}',
+                      )
+                      .join('; '),
+                ),
+              ),
+            ),
+          ),
         if (schedule != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),

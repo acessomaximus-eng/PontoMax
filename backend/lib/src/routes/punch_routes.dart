@@ -211,6 +211,7 @@ class PunchRoutes {
     final minutes = TimeFmt.parseHm(body.str('time', label: 'horário'));
     final reason = body.str('reason', label: 'justificativa');
     final wall = date.toDateTime().add(Duration(minutes: minutes));
+    await app.closings.ensureOpen(ctx.companyId, date);
     if (TimeFmt.fromWall(wall, ctx.offset).isAfter(app.now())) {
       throw const ApiError.badRequest('Não é possível incluir marcações no futuro');
     }
@@ -244,9 +245,19 @@ class PunchRoutes {
     return created(map.punch(row, ctx.offset));
   }
 
+  /// Bloqueia o tratamento de marcações em período fechado.
+  Future<void> _ensurePunchOpen(MemberContext ctx, String id) async {
+    final p = await app.db.one('SELECT punched_at FROM punches WHERE id = @id AND company_id = @c',
+        {'id': requireUuid(id), 'c': ctx.companyId});
+    if (p == null) throw const ApiError.notFound('Marcação não encontrada');
+    final date = LocalDate.fromDateTime(TimeFmt.toWall(p['punched_at'] as DateTime, ctx.offset));
+    await app.closings.ensureOpen(ctx.companyId, date);
+  }
+
   Future<Response> _disregard(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
+    await _ensurePunchOpen(ctx, id);
     final body = await readJson(req);
     final reason = body.str('reason', label: 'justificativa');
     final row = await app.db.one(
@@ -264,6 +275,7 @@ class PunchRoutes {
   Future<Response> _restore(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
+    await _ensurePunchOpen(ctx, id);
     final row = await app.db.one(
       'UPDATE punches SET disregarded = false, disregard_reason = NULL, disregarded_by = NULL '
       'WHERE id = @id AND company_id = @c RETURNING id',
@@ -279,6 +291,7 @@ class PunchRoutes {
   Future<Response> _delete(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
+    await _ensurePunchOpen(ctx, id);
     final row = await app.db.one('SELECT origin FROM punches WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (row == null) throw const ApiError.notFound('Marcação não encontrada');

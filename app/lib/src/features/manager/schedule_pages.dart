@@ -559,6 +559,13 @@ class _ScheduleEditorPageState extends ConsumerState<ScheduleEditorPage> {
                             ),
                           ],
                         ),
+                        _OvertimeBandsEditor(
+                          bands: s.overtimeBands,
+                          singleRate: s.overtimeRateWeekday,
+                          onChanged: (b) => setState(
+                            () => _base = _base.copyWith(overtimeBands: b),
+                          ),
+                        ),
                         SwitchListTile(
                           value: s.preAssignedBreak,
                           onChanged: (v) => setState(
@@ -702,6 +709,130 @@ class _ScheduleEditorPageState extends ConsumerState<ScheduleEditorPage> {
                 _days[i] = _DayDraft(p.work, [...p.intervals], p.flexible);
               }),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Faixas progressivas de hora extra em dias úteis (convenções coletivas).
+class _OvertimeBandsEditor extends StatelessWidget {
+  final List<OvertimeBand> bands;
+  final int singleRate;
+  final ValueChanged<List<OvertimeBand>> onChanged;
+  const _OvertimeBandsEditor({
+    required this.bands,
+    required this.singleRate,
+    required this.onChanged,
+  });
+
+  Future<void> _add(BuildContext context) async {
+    final hours = TextEditingController(text: bands.isEmpty ? '02:00' : '');
+    final rate = TextEditingController(text: bands.isEmpty ? '50' : '100');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Nova faixa de hora extra'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: hours,
+              decoration: const InputDecoration(
+                labelText: 'Até quantas horas extras no dia (HH:MM)',
+                helperText: 'Deixe em branco para "demais horas"',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: rate,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Percentual (%)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Adicionar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final r = int.tryParse(rate.text.trim());
+    if (r == null || r < 0 || r > 300) return;
+    int? upTo;
+    if (hours.text.trim().isNotEmpty) {
+      try {
+        upTo = TimeFmt.parseHm(
+          hours.text.contains(':')
+              ? hours.text.trim()
+              : '${hours.text.trim()}:00',
+        );
+      } on FormatException {
+        return;
+      }
+    }
+    final list = [...bands.where((b) => b.upTo != null), OvertimeBand(upTo, r)];
+    final open = bands.where((b) => b.upTo == null).toList();
+    // Faixas com limite em ordem crescente; a faixa "demais" sempre por último.
+    final limited = list.where((b) => b.upTo != null).toList()
+      ..sort((a, b) => a.upTo!.compareTo(b.upTo!));
+    final rest = upTo == null ? [OvertimeBand(null, r)] : open;
+    onChanged([...limited, ...rest]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String label(int i) {
+      final b = bands[i];
+      final from = i == 0 ? 0 : (bands[i - 1].upTo ?? 0);
+      if (b.upTo == null) {
+        return i == 0
+            ? 'Todas a ${b.rate}%'
+            : 'Acima de ${TimeFmt.minutes(from)} → ${b.rate}%';
+      }
+      return '${TimeFmt.minutes(from)}–${TimeFmt.minutes(b.upTo!)} → ${b.rate}%';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Faixas de hora extra em dias úteis',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            bands.isEmpty
+                ? 'Sem faixas: todas as horas extras de dias úteis a $singleRate%.'
+                : 'Ex.: convenção coletiva com as 2 primeiras horas a 50% e as demais a 100%.',
+            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (var i = 0; i < bands.length; i++)
+                InputChip(
+                  label: Text(label(i)),
+                  onDeleted: () => onChanged([...bands]..removeAt(i)),
+                ),
+              ActionChip(
+                avatar: const Icon(Icons.add, size: 16),
+                label: const Text('Faixa'),
+                onPressed: () => _add(context),
+              ),
+            ],
+          ),
         ],
       ),
     );

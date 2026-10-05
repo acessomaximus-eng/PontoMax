@@ -107,6 +107,25 @@ class DayTemplate {
   }
 }
 
+/// Faixa de hora extra em dias úteis (ex.: até 120 min a 50%, depois 100%).
+class OvertimeBand {
+  /// Limite acumulado de minutos da faixa (`null` = sem limite).
+  final int? upTo;
+  final int rate;
+  const OvertimeBand(this.upTo, this.rate);
+
+  Map<String, Object?> toJson() => {'up_to': upTo, 'rate': rate};
+
+  factory OvertimeBand.fromJson(Map<String, Object?> j) =>
+      OvertimeBand((j['up_to'] as num?)?.toInt(), (j['rate'] as num?)?.toInt() ?? 50);
+
+  @override
+  bool operator ==(Object other) => other is OvertimeBand && other.upTo == upTo && other.rate == rate;
+
+  @override
+  int get hashCode => Object.hash(upTo, rate);
+}
+
 /// Definição completa de uma escala de trabalho e suas regras de cálculo.
 class ScheduleDefinition {
   final String id;
@@ -137,6 +156,9 @@ class ScheduleDefinition {
 
   /// Percentual de hora extra em folgas e feriados.
   final int overtimeRateRestDay;
+
+  /// Faixas progressivas de hora extra em dias úteis (vazio = taxa única).
+  final List<OvertimeBand> overtimeBands;
 
   /// Intervalos pré-assinalados: o colaborador marca só entrada e saída.
   final bool preAssignedBreak;
@@ -171,6 +193,7 @@ class ScheduleDefinition {
     this.hybridDailyBankLimit = 120,
     this.overtimeRateWeekday = 50,
     this.overtimeRateRestDay = 100,
+    this.overtimeBands = const [],
     this.preAssignedBreak = false,
     this.nightReduced = true,
     this.extendNightShift = true,
@@ -265,6 +288,30 @@ class ScheduleDefinition {
     return min == null ? 0 : min - 240;
   }
 
+  /// Distribui [minutes] de hora extra pelas faixas (dias úteis) ou pela
+  /// taxa única. Em folgas/feriados usa [overtimeRateRestDay].
+  Map<int, int> splitOvertime(int minutes, {required bool restDay}) {
+    if (minutes <= 0) return {};
+    if (restDay) return {overtimeRateRestDay: minutes};
+    if (overtimeBands.isEmpty) return {overtimeRateWeekday: minutes};
+    final result = <int, int>{};
+    var remaining = minutes;
+    var consumed = 0;
+    for (final b in overtimeBands) {
+      if (remaining <= 0) break;
+      final cap = b.upTo == null ? remaining : (b.upTo! - consumed).clamp(0, remaining);
+      if (cap <= 0) continue;
+      result[b.rate] = (result[b.rate] ?? 0) + cap;
+      remaining -= cap;
+      consumed += cap;
+    }
+    if (remaining > 0) {
+      final last = overtimeBands.last.rate;
+      result[last] = (result[last] ?? 0) + remaining;
+    }
+    return result;
+  }
+
   /// Carga semanal média (em minutos) — útil para exibição.
   int get weeklyMinutes {
     if (days.isEmpty) return 0;
@@ -287,6 +334,7 @@ class ScheduleDefinition {
         'hybrid_daily_bank_limit': hybridDailyBankLimit,
         'overtime_rate_weekday': overtimeRateWeekday,
         'overtime_rate_rest_day': overtimeRateRestDay,
+        'overtime_bands': [for (final b in overtimeBands) b.toJson()],
         'pre_assigned_break': preAssignedBreak,
         'night_reduced': nightReduced,
         'extend_night_shift': extendNightShift,
@@ -322,6 +370,10 @@ class ScheduleDefinition {
       hybridDailyBankLimit: intOr('hybrid_daily_bank_limit', 120),
       overtimeRateWeekday: intOr('overtime_rate_weekday', 50),
       overtimeRateRestDay: intOr('overtime_rate_rest_day', 100),
+      overtimeBands: [
+        for (final b in (json['overtime_bands'] as List? ?? const []))
+          OvertimeBand.fromJson((b as Map).cast<String, Object?>()),
+      ],
       preAssignedBreak: json['pre_assigned_break'] as bool? ?? false,
       nightReduced: json['night_reduced'] as bool? ?? true,
       extendNightShift: json['extend_night_shift'] as bool? ?? true,
@@ -346,6 +398,7 @@ class ScheduleDefinition {
     int? hybridDailyBankLimit,
     int? overtimeRateWeekday,
     int? overtimeRateRestDay,
+    List<OvertimeBand>? overtimeBands,
     bool? preAssignedBreak,
     bool? nightReduced,
     bool? extendNightShift,
@@ -364,6 +417,7 @@ class ScheduleDefinition {
         hybridDailyBankLimit: hybridDailyBankLimit ?? this.hybridDailyBankLimit,
         overtimeRateWeekday: overtimeRateWeekday ?? this.overtimeRateWeekday,
         overtimeRateRestDay: overtimeRateRestDay ?? this.overtimeRateRestDay,
+        overtimeBands: overtimeBands ?? this.overtimeBands,
         preAssignedBreak: preAssignedBreak ?? this.preAssignedBreak,
         nightReduced: nightReduced ?? this.nightReduced,
         extendNightShift: extendNightShift ?? this.extendNightShift,

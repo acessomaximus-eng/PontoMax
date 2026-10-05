@@ -292,10 +292,20 @@ class ReportService {
 
   String summaryCsv(List<Map<String, Object?>> rows) {
     String h(Object? v) => v is int ? TimeFmt.minutes(v) : '';
+    // Colunas de horas extras conforme os percentuais existentes (50, 70, 100...).
+    final rates = <int>{50, 100};
+    for (final r in rows) {
+      for (final k in ((r['overtime'] as Map?) ?? const {}).keys) {
+        final rate = int.tryParse(k.toString());
+        if (rate != null) rates.add(rate);
+      }
+    }
+    final sortedRates = rates.toList()..sort();
     final b = StringBuffer()
       ..writeln([
-        'Nome', 'CPF', 'Matrícula', 'Departamento', 'Previsto', 'Trabalhado', 'Abonado', 'Extras 50%',
-        'Extras 100%', 'Extras total', 'Faltas/atrasos', 'Noturno', 'Noturno reduzido', 'Banco no período',
+        'Nome', 'CPF', 'Matrícula', 'Departamento', 'Previsto', 'Trabalhado', 'Abonado',
+        for (final rate in sortedRates) 'Extras $rate%',
+        'Extras total', 'Faltas/atrasos', 'Noturno', 'Noturno reduzido', 'Banco no período',
         'Saldo banco', 'Dias de falta', 'Inconsistências',
       ].join(';'));
     for (final r in rows) {
@@ -308,8 +318,7 @@ class ReportService {
         h(r['expected']),
         h(r['worked']),
         h(r['excused']),
-        h(ot['50']),
-        h(ot['100']),
+        for (final rate in sortedRates) h(ot['$rate']),
         h(r['overtime_total']),
         h(r['deficit']),
         h(r['night_minutes']),

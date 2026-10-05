@@ -465,13 +465,11 @@ class JourneyCalculator {
     var bankDelta = 0;
     final positive = math.max(0, balance);
     final negative = math.max(0, -balance);
-    final rate =
-        isRestDay ? sched.overtimeRateRestDay : sched.overtimeRateWeekday;
     final bankDayOff = dayAbsences.any((a) => a.type == AbsenceType.bankDayOff);
 
     switch (sched.regime) {
       case CompensationRegime.overtime:
-        if (positive > 0) overtime[rate] = positive;
+        overtime.addAll(sched.splitOvertime(positive, restDay: isRestDay));
         if (negative > 0) {
           if (sched.deductAbsencesFromBank || bankDayOff) {
             bankDelta = -negative;
@@ -483,7 +481,7 @@ class JourneyCalculator {
         bankDelta = balance;
       case CompensationRegime.hybrid:
         final toBank = math.min(positive, sched.hybridDailyBankLimit);
-        if (positive - toBank > 0) overtime[rate] = positive - toBank;
+        overtime.addAll(sched.splitOvertime(positive - toBank, restDay: isRestDay));
         bankDelta = toBank - negative;
     }
 

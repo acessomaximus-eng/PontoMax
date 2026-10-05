@@ -245,6 +245,44 @@ void main() {
     });
   });
 
+  group('Faixas de hora extra', () {
+    final banded = ScheduleDefinition.standard44().copyWith(
+      overtimeBands: const [OvertimeBand(120, 50), OvertimeBand(null, 100)],
+    );
+
+    test('divide as extras do dia útil pelas faixas', () {
+      final r = day(banded, monday, ['08:00', '12:00', '13:00', '21:00']);
+      expect(r.overtime, {50: 120, 100: 60});
+    });
+
+    test('folga usa a taxa de descanso', () {
+      final r = day(banded, monday.addDays(5), ['08:00', '12:00']);
+      expect(r.overtime, {100: 240});
+    });
+
+    test('três faixas e mesma taxa repetida', () {
+      final s = banded.copyWith(overtimeBands: const [
+        OvertimeBand(60, 50),
+        OvertimeBand(120, 70),
+        OvertimeBand(null, 100),
+      ]);
+      expect(s.splitOvertime(150, restDay: false), {50: 60, 70: 60, 100: 30});
+      expect(s.splitOvertime(30, restDay: false), {50: 30});
+    });
+
+    test('híbrido: excedente do banco segue as faixas', () {
+      final s = banded.copyWith(regime: CompensationRegime.hybrid);
+      final r = day(s, monday, ['08:00', '12:00', '13:00', '23:00']);
+      expect(r.bankDelta, 120);
+      expect(r.overtime, {50: 120, 100: 60});
+    });
+
+    test('serialização das faixas', () {
+      final back = ScheduleDefinition.fromJson(banded.toJson());
+      expect(back.overtimeBands, banded.overtimeBands);
+    });
+  });
+
   group('Jornada noturna', () {
     final night = ScheduleDefinition(
       days:

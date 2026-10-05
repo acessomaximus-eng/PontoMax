@@ -15,6 +15,11 @@ class Config {
   final Duration refreshTokenTtl;
   final String inpiNumber;
   final String developerDocument;
+  /// Certificado de assinatura do AFD/AEJ/comprovante: arquivo .pfx/.p12 (A1)
+  /// ou PEM (certificado + chave). Sem ele, usa um autoassinado.
+  final String? signingCertPath;
+  final String? signingCertBase64;
+  final String signingCertPassword;
   final String? smtpHost;
   final int smtpPort;
   final String? smtpUser;
@@ -36,6 +41,9 @@ class Config {
     this.refreshTokenTtl = const Duration(days: 30),
     this.inpiNumber = '00000000000000000',
     this.developerDocument = '00000000000000',
+    this.signingCertPath,
+    this.signingCertBase64,
+    this.signingCertPassword = '',
     this.smtpHost,
     this.smtpPort = 587,
     this.smtpUser,
@@ -64,6 +72,9 @@ class Config {
       passwordIterations: int.tryParse(opt('PASSWORD_ITERATIONS') ?? '') ?? 120000,
       inpiNumber: opt('REP_INPI_NUMBER') ?? '00000000000000000',
       developerDocument: opt('REP_DEVELOPER_CNPJ') ?? '00000000000000',
+      signingCertPath: opt('SIGNING_CERT_PATH'),
+      signingCertBase64: opt('SIGNING_CERT_BASE64'),
+      signingCertPassword: opt('SIGNING_CERT_PASSWORD') ?? '',
       smtpHost: opt('SMTP_HOST'),
       smtpPort: int.tryParse(opt('SMTP_PORT') ?? '') ?? 587,
       smtpUser: opt('SMTP_USER'),

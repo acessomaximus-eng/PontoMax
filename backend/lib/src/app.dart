@@ -9,6 +9,7 @@ import 'services/mailer.dart';
 import 'services/notification_service.dart';
 import 'services/punch_service.dart';
 import 'services/report_service.dart';
+import 'services/signing_service.dart';
 import 'services/storage_service.dart';
 import 'services/timesheet_service.dart';
 import 'services/webhook_service.dart';
@@ -31,6 +32,7 @@ class App {
   late final ReportService reports = ReportService(this);
   late final ClosingService closings = ClosingService(this);
   late final WebhookService webhooks = WebhookService(this);
+  late final SigningService signing = SigningService(this);
 
   App(this.config, this.db, {DateTime Function()? clock})
       : _clock = clock ?? (() => DateTime.now().toUtc());

@@ -10,10 +10,11 @@
 | Marcações off-line | Permitidas (configurável), enviadas depois e marcadas como off-line no AFD (campo 7 do registro tipo 7) |
 | AFD leiaute 003 | Registros 1 (cabeçalho), 2 (empregador), 5 (empregado), 7 (marcação REP-P com SHA-256 encadeado), 9 (trailer); CRC-16/KERMIT; ISO-8859-1; CRLF |
 | AEJ | Registros 01–08 e 99 (vínculos, horário contratual, marcações tratadas com fonte O/I/P, ausências e banco de horas) |
-| Comprovante de registro | Exibido após cada marcação e disponível em PDF, com NSR e hash |
+| Comprovante de registro | Exibido após cada marcação e disponível em PDF com NSR e hash, **assinado em PAdES** (ETSI.CAdES.detached) |
 | Inalterabilidade | Marcações originais não podem ser editadas nem excluídas; tratamento por inclusão (fonte `I`) e desconsideração justificadas, com auditoria |
 | Número de registro no INPI | Configurável (`REP_INPI_NUMBER` ou nas regras da empresa) |
-| Assinatura do AFD (CAdES) | **Pendente** — requer certificado ICP-Brasil do desenvolvedor (ver roadmap) |
+| Assinatura do AFD e do AEJ | **CAdES-BES destacada** (`.p7s`, SHA-256/RSA, atributos *signing-certificate-v2*, *message-digest*, *signing-time*), entregue em ZIP junto ao `.txt` (`?signed=true`). Certificado A1 ICP-Brasil configurado em `SIGNING_CERT_PATH`/`SIGNING_CERT_PASSWORD` (.pfx atual ou legado, ou PEM); sem ele o servidor usa um autoassinado, válido apenas para testes |
+| Verificação | `POST /signature/verify` confere integridade e assinatura de um arquivo + `.p7s`; validado também com OpenSSL (`cms -verify`) e Poppler (`pdfsig`) nos testes |
 
 > Pontos a validar antes da homologação: confira os leiautes com a versão vigente dos Anexos V e VI da Portaria 671 e registre o programa no INPI.
 

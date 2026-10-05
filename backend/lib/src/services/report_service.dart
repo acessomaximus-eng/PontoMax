@@ -223,7 +223,10 @@ class ReportService {
   // PDF: comprovante de registro de ponto
   // -------------------------------------------------------------------------
 
+  /// Comprovante em PDF assinado digitalmente (PAdES, Portaria 671 art. 88).
   Future<Uint8List> receiptPdf(PunchReceipt r) async {
+    final signature = await app.signing.pades('Comprovante de registro de ponto do trabalhador');
+    final signer = signature.signer.identity.certificate.subjectCommonName ?? 'PontoMax';
     final doc = pw.Document(title: PunchReceipt.title, author: 'PontoMax', theme: theme);
     doc.addPage(pw.Page(
       pageFormat: const PdfPageFormat(80 * PdfPageFormat.mm, 160 * PdfPageFormat.mm,
@@ -249,6 +252,15 @@ class ReportService {
             data: 'NSR:${r.nsr};HASH:${r.hash}',
             width: 70,
             height: 70,
+          ),
+        ),
+        pw.SizedBox(height: 4),
+        pw.Signature(
+          name: 'Assinatura PontoMax',
+          value: signature,
+          child: pw.Center(
+            child: pw.Text('Assinado digitalmente por $signer',
+                textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 5, color: _muted)),
           ),
         ),
       ]),

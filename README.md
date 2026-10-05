@@ -13,7 +13,7 @@ Controle de ponto eletrônico **REP-P (Portaria MTP 671/2021)** multiplataforma 
 | **Escalas** | Semanal, cíclica (12x36, 6x1...), noturna (vira a meia-noite), flexível, intervalo pré-assinalado; regimes **horas extras**, **banco de horas** e **híbrido**; **faixas progressivas de hora extra** (ex.: 2h a 50%, demais a 100%) |
 | **Colaborador** | Bater ponto · espelho de ponto · solicitações (esquecimento, ajuste, atestado com foto, abono, folga, férias) · banco de horas · comprovantes · **work chat** · bloco de notas · notificações · lembretes de marcação · assinatura eletrônica do espelho · crachá digital |
 | **Gestor** | Painel do dia (trabalhando, ausentes, atrasos, fora do perímetro) com checklist de primeiros passos · mapa das marcações · colaboradores (cadastro ou **importação por planilha CSV**) · aprovações · tratamento do ponto (incluir/desconsiderar com justificativa) · **fechamento de período** · banco de horas manual · escalas · feriados (importação nacional) · perímetros no mapa · quiosques · departamentos e cargos · regras da empresa · auditoria · **gestor com visão só da própria equipe** (opcional) |
-| **Relatórios** | Espelho de ponto em PDF · resumo do período (CSV) · integração com folha (CSV com eventos HE50/HE100/ADN/faltas) · marcações detalhadas · **AFD** (leiaute 003, NSR, CRC-16, SHA-256 encadeado) · **AEJ** |
+| **Relatórios** | Espelho de ponto em PDF · resumo do período (CSV) · integração com folha (CSV com eventos HE50/HE100/ADN/faltas) · marcações detalhadas · **AFD** (leiaute 003, NSR, CRC-16, SHA-256 encadeado) · **AEJ** · **assinatura digital** CAdES (.p7s) no AFD/AEJ e PAdES no comprovante, com certificado A1 ICP-Brasil |
 | **Integração** | **API com chaves somente leitura** (folha, ERP, BI) e **webhooks assinados (HMAC)** para marcações, solicitações, colaboradores e fechamentos |
 | **Plataforma** | Multiempresa · perfis (proprietário, administrador, gestor, colaborador) · JWT com refresh rotativo · limite de tentativas (login, PIN do quiosque, cadastro) · LGPD · trilha de auditoria |
 
@@ -73,7 +73,7 @@ Variáveis da API: veja [`.env.example`](.env.example) e [`backend/lib/src/confi
 ## Testes
 
 - `packages/pontomax_core`: 64 testes do motor CLT (inclusive faixas de hora extra e validade do banco), AFD/AEJ, validadores, geocerca e QR.
-- `backend`: 24 testes de integração ponta a ponta (PostgreSQL real): autenticação, REP-P (NSR/hash/AFD), perímetro, foto, off-line, tratamento, espelho, banco de horas, solicitações, quiosque/QR, limite de PIN, fechamento de período, visão por equipe, importação CSV, chaves de API, webhooks, chat, dados de demonstração e equivalência da apuração em lote.
+- `backend`: 27 testes de integração ponta a ponta (PostgreSQL real): autenticação, REP-P (NSR/hash/AFD), perímetro, foto, off-line, tratamento, espelho, banco de horas, solicitações, quiosque/QR, limite de PIN, fechamento de período, visão por equipe, importação CSV, chaves de API, webhooks, chat, dados de demonstração, equivalência da apuração em lote e assinaturas CAdES/PAdES (com certificados .pfx atual e legado validados pelo OpenSSL).
 - `e2e`: Playwright no app web (login do gestor, marcação com GPS, quiosque com PIN); `CPU_THROTTLE=6` simula máquinas lentas.
 - `app`: análise estática + testes de unidade/widget; o CI gera o build web, o **APK Android** e a imagem Docker.
 

@@ -5,3 +5,7 @@
 app/android/.gradle
 app/ios/Pods
 .git
+
+certs/
+*.pfx
+*.p12

@@ -189,3 +189,9 @@ final signaturesProvider = FutureProvider.autoDispose<List<TimesheetSignature>>(
 final closingsProvider = FutureProvider.autoDispose<List<J>>((ref) async {
   return ref.watch(apiProvider).getList('/closings');
 });
+
+/// Certificado usado para assinar AFD, AEJ e comprovantes.
+final signatureInfoProvider = FutureProvider.autoDispose<J>((ref) async {
+  final r = await ref.watch(apiProvider).get('/signature');
+  return (r as Map).cast<String, dynamic>();
+});

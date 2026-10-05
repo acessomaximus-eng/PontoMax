@@ -186,7 +186,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   (LocalDate, LocalDate) _period(Me me) =>
       (me.company?.settings ?? const CompanySettings()).periodFor(_anchor);
 
-  Future<void> _download(String path, String mime) async {
+  Future<void> _download(
+    String path,
+    String mime, {
+    Map<String, String> extra = const {},
+  }) async {
     final me = ref.read(meProvider);
     final (from, to) = _period(me);
     await runAction(context, () async {
@@ -194,7 +198,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           .read(apiProvider)
           .download(
             path,
-            query: {'from': from.toString(), 'to': to.toString()},
+            query: {'from': from.toString(), 'to': to.toString(), ...extra},
           );
       await saveAndOpen(bytes, name ?? path.split('/').last, mime);
     }, success: 'Arquivo gerado');
@@ -257,19 +261,27 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                       _ExportCard(
                         icon: Icons.gavel_outlined,
                         title: 'AFD — Arquivo Fonte de Dados',
-                        subtitle: 'Portaria 671, leiaute 003 (REP-P) para fiscalização',
-                        onTap: () => _download('/reports/afd', 'text/plain'),
+                        subtitle: 'Portaria 671, leiaute 003 (REP-P), com assinatura digital (.p7s)',
+                        onTap: () => _download(
+                          '/reports/afd',
+                          'application/zip',
+                          extra: const {'signed': 'true'},
+                        ),
                       ),
                     if (me.companyWide)
                       _ExportCard(
                         icon: Icons.description_outlined,
                         title: 'AEJ — Arquivo Eletrônico de Jornada',
-                        subtitle:
-                            'Jornadas tratadas, ausências e banco de horas',
-                        onTap: () => _download('/reports/aej', 'text/plain'),
+                        subtitle: 'Jornadas tratadas, ausências e banco de horas, assinado (.p7s)',
+                        onTap: () => _download(
+                          '/reports/aej',
+                          'application/zip',
+                          extra: const {'signed': 'true'},
+                        ),
                       ),
                   ],
                 ),
+                if (me.companyWide) const _SignatureNotice(),
                 if (me.companyWide) _ClosingsSection(from: from, to: to),
                 const SectionTitle('Resumo por colaborador'),
                 AsyncView(
@@ -432,6 +444,49 @@ class _ExportCard extends StatelessWidget {
 }
 
 /// Fechamento de período (trava o tratamento do ponto após enviar a folha).
+/// Aviso sobre o certificado que assina os arquivos legais.
+class _SignatureNotice extends ConsumerWidget {
+  const _SignatureNotice();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final info = ref.watch(signatureInfoProvider).value;
+    if (info == null) return const SizedBox.shrink();
+    final selfSigned = info['self_signed'] == true;
+    final expired = info['expired'] == true;
+    final warn = selfSigned || expired || info['icp_brasil'] != true;
+    final until = DateTime.tryParse('${info['not_after']}');
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Card(
+        color: warn
+            ? AppColors.warning.withValues(alpha: 0.08)
+            : AppColors.accent.withValues(alpha: 0.06),
+        child: ListTile(
+          leading: Icon(
+            warn ? Icons.gpp_maybe_outlined : Icons.verified_outlined,
+            color: warn ? AppColors.warning : AppColors.accent,
+          ),
+          title: Text(
+            expired
+                ? 'Certificado de assinatura vencido'
+                : selfSigned
+                ? 'Arquivos assinados com certificado autoassinado'
+                : 'Assinatura digital: ${info['subject']}',
+          ),
+          subtitle: Text(
+            selfSigned
+                ? 'Para a fiscalização, configure o certificado A1 (ICP-Brasil) no servidor: '
+                      'SIGNING_CERT_PATH e SIGNING_CERT_PASSWORD.'
+                : 'Emitido por ${info['issuer']}'
+                      '${until == null ? '' : ' · válido até ${until.day.toString().padLeft(2, '0')}/${until.month.toString().padLeft(2, '0')}/${until.year}'}',
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ClosingsSection extends ConsumerWidget {
   final LocalDate from;
   final LocalDate to;

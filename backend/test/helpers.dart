@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:pontomax_backend/server.dart';
+import 'package:pontomax_backend/src/signing/cms.dart';
+import 'package:pontomax_backend/src/signing/der.dart';
 import 'package:shelf/shelf.dart';
 
 /// Relógio controlável para os testes.
@@ -126,4 +128,19 @@ class TestApi {
     if (r.status != 200) throw StateError('login falhou: $r');
     return r.json['access_token'] as String;
   }
+}
+
+/// Confere a assinatura PAdES de um PDF: ByteRange cobre o arquivo todo
+/// (exceto /Contents) e o CMS confere com esses bytes.
+bool pdfSignatureValid(List<int> pdf) {
+  final text = latin1.decode(pdf);
+  final m = RegExp(r'/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]').firstMatch(text);
+  if (m == null) return false;
+  final r = [for (var i = 1; i <= 4; i++) int.parse(m.group(i)!)];
+  if (r[0] != 0 || r[2] + r[3] != pdf.length) return false;
+  final hex = text.substring(r[1] + 1, r[2] - 1);
+  final padded = [for (var i = 0; i + 1 < hex.length; i += 2) int.parse(hex.substring(i, i + 2), radix: 16)];
+  final cms = DerNode.parse(padded).raw; // descarta o preenchimento com zeros
+  final signed = [...pdf.sublist(0, r[1]), ...pdf.sublist(r[2])];
+  return CmsVerifier.verifyDetached(cms, signed).valid;
 }

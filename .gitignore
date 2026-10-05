@@ -26,3 +26,8 @@ Thumbs.db
 # Node (testes E2E)
 node_modules/
 e2e/test-results/
+
+# Certificados digitais (chave privada) — nunca versionar
+certs/
+*.pfx
+*.p12

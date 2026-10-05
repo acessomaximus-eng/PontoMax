@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 
 import 'package:pontomax_backend/src/seed.dart';
+import 'package:pontomax_backend/src/signing/cms.dart';
 import 'package:pontomax_core/pontomax_core.dart';
 import 'package:test/test.dart';
 
@@ -145,6 +147,30 @@ void main() {
       final aej = await api.get('/reports/aej?from=2026-10-01&to=2026-10-31', token: token);
       expect(aej.status, 200);
       expect(latin1.decode(aej.bytes), contains('99|1|1|1|1|2|'));
+
+      // Assinaturas eletrônicas (Portaria 671): CAdES destacada no AFD/AEJ e
+      // PAdES no comprovante. Sem certificado configurado → autoassinado.
+      final info = await api.get('/signature', token: token);
+      expect(info.json['self_signed'], isTrue);
+      expect(info.json['configured'], isFalse);
+      for (final kind in ['afd', 'aej']) {
+        final zipped = await api.get('/reports/$kind?from=2026-10-01&to=2026-10-31&signed=true', token: token);
+        expect(zipped.status, 200);
+        expect(zipped.headers['content-type'], 'application/zip');
+        final files = {for (final f in ZipDecoder().decodeBytes(zipped.bytes)) f.name: f.content};
+        expect(files.keys.where((n) => n.endsWith('.txt.p7s')), hasLength(1));
+        final txt = files.entries.firstWhere((e) => e.key.endsWith('.txt'));
+        final p7s = files['${txt.key}.p7s']!;
+        expect(CmsVerifier.verifyDetached(p7s, txt.value).valid, isTrue);
+        final verify = await api.post('/signature/verify',
+            {'content': base64.encode(txt.value), 'signature': base64.encode(p7s)}, token: token);
+        expect(verify.json['valid'], isTrue);
+        final tampered = [...txt.value]..[20] ^= 1;
+        final bad = await api.post('/signature/verify',
+            {'content': base64.encode(tampered), 'signature': base64.encode(p7s)}, token: token);
+        expect(bad.json['valid'], isFalse);
+      }
+      expect(pdfSignatureValid(pdf.bytes), isTrue);
     });
 
     test('perímetro obrigatório bloqueia marcação fora da geocerca', () async {

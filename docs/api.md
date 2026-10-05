@@ -40,7 +40,9 @@ Base: `/api/v1`. JSON em UTF-8. Datas `AAAA-MM-DD`; instantes ISO-8601 em UTC.
 | GET | `/timesheet` · `/timesheet.pdf` | todos | Espelho de ponto (gestor: `member_id`) |
 | POST | `/timesheet/sign` · GET `/timesheet/signatures` | todos | Assinatura eletrônica |
 | GET | `/reports/summary` · `.csv` · `/payroll.csv` · `/punches.csv` | gestor | Relatórios |
-| GET | `/reports/afd` · `/reports/aej` | gestor | Arquivos da Portaria 671 |
+| GET | `/reports/afd` · `/reports/aej` | gestor | Arquivos da Portaria 671; com `signed=true`, ZIP com o `.txt` e a assinatura CAdES `.p7s` |
+| GET | `/signature` | administrador | Certificado de assinatura em uso (titular, emissor, validade, ICP-Brasil, autoassinado) |
+| POST | `/signature/verify` | gestor | `{content, signature}` em base64 → `{valid, signer, issuer, signing_time, error}` |
 | GET | `/dashboard` · `/audit` | gestor | Painel e auditoria |
 | GET/POST | `/chat/conversations` · `/chat/{memberId}/messages` · POST `/read` | todos | Work chat (long-polling com `after` + `wait`) |
 | GET | `/events/wait` | todos | Long-polling de eventos |

@@ -30,6 +30,9 @@ services:
       SEED_DEMO: ${SEED_DEMO:-false}
       REP_INPI_NUMBER: ${REP_INPI_NUMBER:-}
       REP_DEVELOPER_CNPJ: ${REP_DEVELOPER_CNPJ:-}
+      # Certificado A1: coloque o .pfx em ./certs e use SIGNING_CERT_PATH=/srv/certs/arquivo.pfx
+      SIGNING_CERT_PATH: ${SIGNING_CERT_PATH:-}
+      SIGNING_CERT_PASSWORD: ${SIGNING_CERT_PASSWORD:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -38,6 +41,7 @@ services:
       PONTOMAX_ENV: production
     volumes:
       - storage:/srv/storage
+      - ./certs:/srv/certs:ro
 
 volumes:
   db-data:

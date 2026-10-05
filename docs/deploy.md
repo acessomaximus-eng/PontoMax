@@ -46,3 +46,22 @@ gcloud run deploy pontomax \
 ## Apps nativos
 
 O workflow **Release multiplataforma** (`.github/workflows/release.yml`) gera APK/AAB (Android), IPA sem assinatura (iOS), Windows, macOS, Linux e Web. Defina a variável de repositório `PONTOMAX_API_URL` com o endereço público da API. Para publicar nas lojas, configure a assinatura (keystore Android e certificados Apple).
+
+## Certificado digital (assinatura do AFD, AEJ e comprovantes)
+
+A Portaria 671 exige o AFD e o AEJ assinados em CAdES (arquivo `.p7s` destacado) e o comprovante em PDF com PAdES. Configure um certificado **A1 ICP-Brasil** (e-CNPJ) do desenvolvedor do programa:
+
+```bash
+# Docker / servidor
+SIGNING_CERT_PATH=/run/secrets/certificado.pfx
+SIGNING_CERT_PASSWORD=senha-do-pfx
+
+# Google Cloud Run: guarde o .pfx no Secret Manager e monte como arquivo
+gcloud secrets create pontomax-cert --data-file=certificado.pfx
+gcloud secrets create pontomax-cert-pass --data-file=- <<< 'senha-do-pfx'
+gcloud run services update pontomax \
+  --set-secrets=/certs/certificado.pfx=pontomax-cert:latest,SIGNING_CERT_PASSWORD=pontomax-cert-pass:latest \
+  --set-env-vars=SIGNING_CERT_PATH=/certs/certificado.pfx
+```
+
+São aceitos `.pfx`/`.p12` no formato atual (AES/PBKDF2) e legado (3DES/RC2), ou PEM com certificado e chave. A tela **Relatórios** mostra o certificado em uso e avisa quando ele é autoassinado ou está vencido.

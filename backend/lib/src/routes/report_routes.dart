@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:archive/archive.dart';
 import 'package:pontomax_core/pontomax_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
@@ -9,6 +10,7 @@ import '../auth/session.dart';
 import '../http/http_utils.dart';
 import '../http/mappers.dart';
 import '../services/report_service.dart';
+import '../signing/cms.dart';
 
 /// Espelho de ponto, assinatura, relatórios, exportações legais e dashboard.
 class ReportRoutes {
@@ -27,6 +29,8 @@ class ReportRoutes {
     ..get('/reports/punches.csv', _punchesCsv)
     ..get('/reports/afd', _afd)
     ..get('/reports/aej', _aej)
+    ..get('/signature', _signatureInfo)
+    ..post('/signature/verify', _verifySignature)
     ..get('/closings', _listClosings)
     ..post('/closings', _close)
     ..delete('/closings/<id>', _reopen)
@@ -228,8 +232,43 @@ class ReportRoutes {
     await app.audit.log(companyId: ctx.companyId, userId: ctx.user.id, action: 'export', entity: 'afd',
         data: {'from': from.toString(), 'to': to.toString()}, ip: req.clientIp);
     final doc = Documents.onlyAlnum(company['document'] as String?);
-    return fileResponse(ReportService.latin1Bytes(content),
-        contentType: 'text/plain; charset=iso-8859-1', filename: 'AFD${app.config.inpiNumber}$doc.txt');
+    return _legalFile(req, ReportService.latin1Bytes(content), 'AFD${app.config.inpiNumber}$doc.txt');
+  }
+
+  /// Arquivo legal em texto ou, com `signed=true`, ZIP com o arquivo e a
+  /// assinatura CAdES destacada (`.p7s`), como entregue à fiscalização.
+  Future<Response> _legalFile(Request req, List<int> bytes, String filename) async {
+    if (req.url.queryParameters['signed'] != 'true') {
+      return fileResponse(bytes, contentType: 'text/plain; charset=iso-8859-1', filename: filename);
+    }
+    final p7s = await app.signing.detached(bytes);
+    final zip = ZipEncoder().encode(Archive()
+      ..addFile(ArchiveFile.bytes(filename, bytes))
+      ..addFile(ArchiveFile.bytes('$filename.p7s', p7s)));
+    return fileResponse(zip, contentType: 'application/zip', filename: filename.replaceAll('.txt', '.zip'));
+  }
+
+  Future<Response> _signatureInfo(Request req) async {
+    final ctx = await app.sessions.member(req);
+    ctx.requireCompanyWide();
+    return jsonResponse(await app.signing.info());
+  }
+
+  /// Verifica um arquivo e sua assinatura `.p7s` (ambos em base64).
+  Future<Response> _verifySignature(Request req) async {
+    final ctx = await app.sessions.member(req);
+    ctx.requireManager();
+    final body = await readJson(req);
+    List<int> b64(String field) {
+      try {
+        return base64.decode(body.str(field));
+      } on FormatException {
+        throw ApiError.badRequest('Campo $field deve estar em base64');
+      }
+    }
+
+    final content = b64('content'), signature = b64('signature');
+    return jsonResponse(CmsVerifier.verifyDetached(signature, content).toJson());
   }
 
   Future<Response> _aej(Request req) async {
@@ -241,8 +280,7 @@ class ReportRoutes {
     await app.audit.log(companyId: ctx.companyId, userId: ctx.user.id, action: 'export', entity: 'aej',
         data: {'from': from.toString(), 'to': to.toString()}, ip: req.clientIp);
     final doc = Documents.onlyAlnum(company['document'] as String?);
-    return fileResponse(ReportService.latin1Bytes(content),
-        contentType: 'text/plain; charset=iso-8859-1', filename: 'AEJ_$doc${from.toString().replaceAll('-', '')}.txt');
+    return _legalFile(req, ReportService.latin1Bytes(content), 'AEJ_$doc${from.toString().replaceAll('-', '')}.txt');
   }
 
   Future<Response> _listClosings(Request req) async {

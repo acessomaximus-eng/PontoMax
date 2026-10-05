@@ -418,8 +418,12 @@ class _PunchButton extends StatelessWidget {
         ? const [Color(0xFFF97316), Color(0xFFEA580C)]
         : const [Color(0xFF10B981), Color(0xFF059669)];
     return Semantics(
+      container: true,
       button: true,
+      enabled: !busy && onPressed != null,
       label: 'Registrar ponto: $label',
+      onTap: busy ? null : onPressed,
+      excludeSemantics: true,
       child: GestureDetector(
         onTap: busy ? null : onPressed,
         child: AnimatedContainer(

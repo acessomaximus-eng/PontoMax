@@ -1,0 +1,12 @@
+{
+  "name": "pontomax-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Testes ponta a ponta do app web do PontoMax (Playwright).",
+  "scripts": {
+    "test": "node smoke.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.56.1"
+  }
+}

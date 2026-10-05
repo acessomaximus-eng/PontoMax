@@ -75,6 +75,59 @@ jobs:
           path: app/build/web
           retention-days: 7
 
+  e2e:
+    name: E2E (Playwright no app web)
+    runs-on: ubuntu-latest
+    needs: app
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pontomax
+          POSTGRES_PASSWORD: pontomax
+          POSTGRES_DB: pontomax
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pontomax" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.5"
+      - uses: actions/download-artifact@v4
+        with:
+          name: pontomax-web
+          path: app/build/web
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sobe a API com dados de demonstração
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://pontomax:pontomax@localhost:5432/pontomax
+          JWT_SECRET: e2e-secret
+          SEED_DEMO: "true"
+          PORT: "8080"
+          WEB_DIR: ${{ github.workspace }}/app/build/web
+          SITE_DIR: ${{ github.workspace }}/site
+          FONTS_DIR: ${{ github.workspace }}/backend/assets/fonts
+          STORAGE_DIR: /tmp/pontomax-storage
+        run: |
+          dart pub get
+          mkdir -p build && dart compile exe bin/server.dart -o build/server
+          nohup ./build/server > /tmp/server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:8080/api/v1/health && break; sleep 1; done
+      - name: Playwright
+        working-directory: e2e
+        env:
+          BASE_URL: http://localhost:8080
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npm test
+      - if: failure()
+        run: cat /tmp/server.log | tail -100
+
   android:
     name: Build Android (APK)
     runs-on: ubuntu-latest

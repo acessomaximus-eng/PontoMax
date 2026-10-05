@@ -72,8 +72,9 @@ Variáveis da API: veja [`.env.example`](.env.example) e [`backend/lib/src/confi
 
 ## Testes
 
-- `packages/pontomax_core`: 57 testes do motor CLT (inclusive faixas de hora extra), AFD/AEJ, validadores, geocerca e QR.
-- `backend`: 24 testes de integração ponta a ponta (PostgreSQL real): autenticação, REP-P (NSR/hash/AFD), perímetro, foto, off-line, tratamento, espelho, banco de horas, solicitações, quiosque/QR, limite de PIN, fechamento de período, visão por equipe, importação CSV, chaves de API, webhooks, chat e dados de demonstração.
+- `packages/pontomax_core`: 64 testes do motor CLT (inclusive faixas de hora extra e validade do banco), AFD/AEJ, validadores, geocerca e QR.
+- `backend`: 24 testes de integração ponta a ponta (PostgreSQL real): autenticação, REP-P (NSR/hash/AFD), perímetro, foto, off-line, tratamento, espelho, banco de horas, solicitações, quiosque/QR, limite de PIN, fechamento de período, visão por equipe, importação CSV, chaves de API, webhooks, chat, dados de demonstração e equivalência da apuração em lote.
+- `e2e`: Playwright no app web (login do gestor, marcação com GPS, quiosque com PIN); `CPU_THROTTLE=6` simula máquinas lentas.
 - `app`: análise estática + testes de unidade/widget; o CI gera o build web, o **APK Android** e a imagem Docker.
 
 ## Documentação

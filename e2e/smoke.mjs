@@ -1,11 +1,13 @@
 // Testes ponta a ponta do app web (Flutter) contra uma API com dados de demonstração.
-// Uso: BASE_URL=http://localhost:8080 node smoke.mjs
+// Uso: BASE_URL=http://localhost:8080 [CPU_THROTTLE=6] node smoke.mjs
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:8080';
 const API = `${BASE}/api/v1`;
 const results = [];
+let lastPage;
 
 async function api(path, { token, method = 'GET', body } = {}) {
   const res = await fetch(`${API}${path}`, {
@@ -31,8 +33,35 @@ async function newPage(browser, opts = {}) {
     ...opts,
   });
   const page = await ctx.newPage();
+  // CPU_THROTTLE=6 simula uma máquina lenta (como os runners do CI).
+  if (process.env.CPU_THROTTLE) {
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.CPU_THROTTLE) });
+  }
   page.on('pageerror', (e) => console.error('pageerror:', e.message));
+  lastPage = page;
   return page;
+}
+
+/// Digita em um campo do Flutter web. O <input> real só existe depois que o
+/// campo recebe o foco; em máquinas lentas as primeiras teclas se perdiam.
+async function typeInto(page, name, text) {
+  let got;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.getByRole('textbox', { name }).click();
+    await page
+      .waitForFunction(() => ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName), null, { timeout: 5000 })
+      .catch(() => {});
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.type(text, { delay: 20 });
+    got = await page.evaluate(() => document.activeElement?.value);
+    if (got === text) return;
+    await page.waitForTimeout(500);
+  }
+  const shown = name === 'Senha' ? `${got?.length ?? 0} caractere(s)` : JSON.stringify(got);
+  throw new Error(`não foi possível preencher "${name}" (campo ficou com ${shown})`);
 }
 
 /// Abre o app e ativa a árvore de acessibilidade do Flutter (rótulos no DOM).
@@ -45,12 +74,11 @@ async function open(page, hash = '') {
 
 async function uiLogin(page, email) {
   await open(page);
-  await page.getByRole('textbox', { name: 'E-mail' }).click();
-  await page.keyboard.type(email);
-  await page.getByRole('textbox', { name: 'Senha' }).click();
-  await page.keyboard.type('pontomax123');
+  await typeInto(page, 'E-mail', email);
+  await typeInto(page, 'Senha', 'pontomax123');
   await page.getByRole('button', { name: 'Entrar' }).first().click();
-  await page.waitForTimeout(3000);
+  await page.waitForURL((u) => !u.hash.includes('login'), { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1500);
 }
 
 async function step(name, fn) {
@@ -62,6 +90,11 @@ async function step(name, fn) {
   } catch (e) {
     results.push({ name, ok: false, error: e.message });
     console.error(`✘ ${name}: ${e.message}`);
+    if (lastPage && !lastPage.isClosed()) {
+      await mkdir('test-results', { recursive: true });
+      await lastPage.screenshot({ path: `test-results/${results.length}-falha.png` }).catch(() => {});
+      await lastPage.close().catch(() => {});
+    }
   }
 }
 
@@ -107,8 +140,7 @@ await step('quiosque: ativação e marcação com PIN', async () => {
   assert.equal(dev.status, 201);
   const page = await newPage(browser);
   await open(page, '#/kiosk/ativar');
-  await page.getByRole('textbox', { name: 'Código de ativação' }).click();
-  await page.keyboard.type(dev.json.activation_code);
+  await typeInto(page, 'Código de ativação', dev.json.activation_code);
   await page.getByRole('button', { name: 'Ativar' }).click();
   await page.waitForTimeout(3000);
   const ana = await login('ana@pontomax.app');

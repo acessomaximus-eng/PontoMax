@@ -127,6 +127,12 @@ jobs:
           npm test
       - if: failure()
         run: cat /tmp/server.log | tail -100
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-falhas
+          path: e2e/test-results
+          if-no-files-found: ignore
 
   android:
     name: Build Android (APK)

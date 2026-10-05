@@ -16,8 +16,8 @@ stop() {
 
 start() {
   cd "$ROOT/backend"
-  dart compile exe bin/server.dart -o /tmp/pontomax-server >/dev/null
-  PORT="$PORT" SEED_DEMO="${SEED_DEMO:-false}" nohup /tmp/pontomax-server "$@" >"$LOG" 2>&1 &
+  dart compile exe bin/server.dart -o "/tmp/pontomax-server-$PORT" >/dev/null
+  PORT="$PORT" SEED_DEMO="${SEED_DEMO:-false}" nohup "/tmp/pontomax-server-$PORT" "$@" >"$LOG" 2>&1 &
   echo $! >"$PIDFILE"
   for _ in $(seq 1 60); do
     if curl -sf "http://localhost:$PORT/api/v1/health" >/dev/null; then

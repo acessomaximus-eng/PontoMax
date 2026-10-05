@@ -594,6 +594,28 @@ void main() {
       expect(AfdGenerator.verifyChain(latin1.decode(afd.bytes)), isEmpty);
       final summary = await api.get('/reports/summary?from=2026-09-01&to=2026-09-30', token: admin);
       expect((summary.json['rows'] as List).length, 7);
+
+      // A apuração em lote (relatórios) é idêntica à individual (espelho/banco).
+      final company = (await api.app.db.one("SELECT id FROM companies WHERE name = 'Padaria Pão Dourado'"))!;
+      final companyId = company['id'] as String;
+      final ids = [
+        for (final r in await api.app.db.query('SELECT id FROM members WHERE company_id = @c ORDER BY id', {'c': companyId}))
+          r['id'] as String,
+      ];
+      const from = LocalDate(2026, 8, 20), to = LocalDate(2026, 10, 5);
+      final unknown = '00000000${ids.first.substring(8)}';
+      final batch = await api.app.timesheets
+          .periodMany(companyId, [...ids, unknown], from, to, includeBank: true, batch: 3);
+      expect([for (final b in batch) b.memberId], ids);
+      for (final b in batch) {
+        final single = await api.app.timesheets.period(b.memberId, from, to);
+        expect(jsonEncode(b.result.toJson()), jsonEncode(single.toJson()));
+        final bank = await api.app.timesheets.bank(b.memberId);
+        expect(b.bank!.balance, bank.balance);
+        expect(b.bank!.ledger.expired, bank.ledger.expired);
+        expect(b.bank!.monthly, bank.monthly);
+        expect(b.bank!.entries.length, bank.entries.length);
+      }
     });
   });
 }

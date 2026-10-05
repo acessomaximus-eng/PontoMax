@@ -316,22 +316,27 @@ class JourneyCalculator {
     final holidayMap = {for (final h in holidays) h.date: h.name};
     final days = <DayResult>[];
 
-    for (final date in LocalDate.range(from, to)) {
-      final (ws, we) = windowFor(date);
-      final dayPunches = [
-        for (final p in valid)
-          if (!p.time.isBefore(ws) && p.time.isBefore(we)) p,
-      ];
-      DateTime? previousEnd;
-      if (dayPunches.isNotEmpty) {
-        for (final p in valid) {
-          if (p.time.isBefore(ws)) {
-            previousEnd = p.time;
-          } else {
-            break;
-          }
+    // Primeiro índice com horário >= t (busca binária; [valid] está ordenada).
+    int lowerBound(DateTime t) {
+      var lo = 0, hi = valid.length;
+      while (lo < hi) {
+        final mid = (lo + hi) >> 1;
+        if (valid[mid].time.isBefore(t)) {
+          lo = mid + 1;
+        } else {
+          hi = mid;
         }
       }
+      return lo;
+    }
+
+    for (final date in LocalDate.range(from, to)) {
+      final (ws, we) = windowFor(date);
+      final first = lowerBound(ws);
+      final end = we.isAfter(ws) ? lowerBound(we) : first;
+      final dayPunches = valid.sublist(first, end);
+      final previousEnd =
+          dayPunches.isNotEmpty && first > 0 ? valid[first - 1].time : null;
       days.add(_calculateDay(
         date: date,
         punches: dayPunches,

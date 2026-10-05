@@ -274,12 +274,18 @@ class ReportService {
       ORDER BY u.name''',
       {'c': companyId, 'f': from.toString(), 'd': departmentId, ...scopeParams},
     );
+    final ids = [for (final m in members) m['id'] as String];
+    final periods = {
+      for (final p in await app.timesheets.periodMany(companyId, ids, from, to, includeBank: includeBank))
+        p.memberId: p,
+    };
     final out = <Map<String, Object?>>[];
     for (final m in members) {
       final id = m['id'] as String;
-      final ctx = await app.timesheets.context(id);
-      final r = await app.timesheets.period(id, from, to, ctx: ctx);
-      final bank = includeBank ? await app.timesheets.bank(id, ctx: ctx) : null;
+      final p = periods[id];
+      if (p == null) continue;
+      final r = p.result;
+      final bank = p.bank;
       out.add({
         'member_id': id,
         'name': m['name'],
@@ -495,12 +501,31 @@ class ReportService {
       ORDER BY u.name''',
       {'c': company['id'], 'f': from.toString()},
     );
+    final ids = [for (final m in members) m['id'] as String];
+    final periods = {
+      for (final p in await app.timesheets.periodMany(company['id'] as String, ids, from, to)) p.memberId: p,
+    };
+    // Marcações desconsideradas também constam (tpMarc = D).
+    final disregarded = <String, List<Row>>{};
+    for (final p in await app.db.query(
+      'SELECT member_id, punched_at, origin, disregard_reason FROM punches '
+      'WHERE company_id = @c AND disregarded AND punched_at >= @s AND punched_at < @e ORDER BY punched_at',
+      {
+        'c': company['id'],
+        's': TimeFmt.fromWall(from.toDateTime(), offset),
+        'e': TimeFmt.fromWall(to.addDays(1).toDateTime(), offset),
+      },
+    )) {
+      (disregarded[p['member_id'] as String] ??= []).add(p);
+    }
     final employees = <AejEmployee>[];
     final schedules = <String, AejContractSchedule>{};
     final punches = <AejPunch>[];
     final absences = <AejAbsence>[];
     var idx = 0;
     for (final m in members) {
+      final period = periods[m['id'] as String];
+      if (period == null) continue;
       final vid = '${++idx}';
       employees.add(AejEmployee(
         id: vid,
@@ -508,25 +533,15 @@ class ReportService {
         name: m['name'] as String,
         esocialRegistration: m['esocial_registration'] as String?,
       ));
-      final ctx = await app.timesheets.context(m['id'] as String);
-      final r = await app.timesheets.period(m['id'] as String, from, to, ctx: ctx);
+      final ctx = period.ctx;
+      final r = period.result;
       final schedCode = '${schedules.length + 1}';
       final key = ctx.schedule.id.isEmpty ? 'default' : ctx.schedule.id;
       final sched = schedules.putIfAbsent(key, () {
         final template = ctx.schedule.days.firstWhere((d) => d.workDay, orElse: () => DayTemplate.off);
         return AejContractSchedule(schedCode, template.expectedMinutes, template.intervals);
       });
-      // Marcações desconsideradas também constam (tpMarc = D).
-      final all = await app.db.query(
-        'SELECT punched_at, origin, disregarded, disregard_reason, note FROM punches '
-        'WHERE member_id = @m AND punched_at >= @s AND punched_at < @e ORDER BY punched_at',
-        {
-          'm': m['id'],
-          's': TimeFmt.fromWall(from.toDateTime(), offset),
-          'e': TimeFmt.fromWall(to.addDays(1).toDateTime(), offset),
-        },
-      );
-      for (final p in all.where((p) => p['disregarded'] == true)) {
+      for (final p in disregarded[m['id']] ?? const <Row>[]) {
         punches.add(AejPunch(
           employeeId: vid,
           wall: TimeFmt.toWall(p['punched_at'] as DateTime, offset),

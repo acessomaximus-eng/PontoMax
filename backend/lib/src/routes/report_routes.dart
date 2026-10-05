@@ -58,7 +58,7 @@ class ReportRoutes {
   Future<Response> _timesheet(Request req) async {
     final ctx = await app.sessions.member(req);
     final memberId = optUuid(req.q('member_id'), 'member_id') ?? ctx.memberId;
-    ctx.requireSelfOrManager(memberId);
+    await ctx.ensureCanSee(app.db, memberId);
     final (from, to) = _period(req, ctx);
     final tsCtx = await app.timesheets.context(memberId, companyId: ctx.companyId);
     final result = await app.timesheets.period(memberId, from, to, ctx: tsCtx);
@@ -94,7 +94,7 @@ class ReportRoutes {
   Future<Response> _timesheetPdf(Request req) async {
     final ctx = await app.sessions.member(req);
     final memberId = optUuid(req.q('member_id'), 'member_id') ?? ctx.memberId;
-    ctx.requireSelfOrManager(memberId);
+    await ctx.ensureCanSee(app.db, memberId);
     final (from, to) = _period(req, ctx);
     final tsCtx = await app.timesheets.context(memberId, companyId: ctx.companyId);
     final result = await app.timesheets.period(memberId, from, to, ctx: tsCtx);
@@ -157,8 +157,10 @@ class ReportRoutes {
     final ctx = await app.sessions.member(req);
     final memberId = ctx.isManager ? optUuid(req.q('member_id'), 'member_id') : ctx.memberId;
     final rows = await app.db.query(
-      'SELECT * FROM timesheet_signatures WHERE company_id = @c AND (@m::uuid IS NULL OR member_id = @m::uuid) ORDER BY signed_at DESC LIMIT 500',
-      {'c': ctx.companyId, 'm': memberId},
+      'SELECT ts.* FROM timesheet_signatures ts JOIN members m ON m.id = ts.member_id '
+      'WHERE ts.company_id = @c AND (@m::uuid IS NULL OR ts.member_id = @m::uuid)'
+      '${ctx.isManager ? ctx.scopeSql('m') : ''} ORDER BY ts.signed_at DESC LIMIT 500',
+      {'c': ctx.companyId, 'm': memberId, if (ctx.isManager) ...ctx.scopeParams},
     );
     return jsonResponse([for (final r in rows) map.signature(r)]);
   }
@@ -168,7 +170,10 @@ class ReportRoutes {
     ctx.requireManager();
     final (from, to) = _period(req, ctx);
     final rows = await app.reports.summary(ctx.companyId, from, to,
-        departmentId: optUuid(req.q('department_id'), 'department_id'), includeBank: req.q('bank') == 'true');
+        departmentId: optUuid(req.q('department_id'), 'department_id'),
+        includeBank: req.q('bank') == 'true',
+        scopeSql: ctx.scopeSql('m'),
+        scopeParams: ctx.scopeParams);
     return jsonResponse({'from': from.toString(), 'to': to.toString(), 'rows': rows});
   }
 
@@ -177,7 +182,10 @@ class ReportRoutes {
     ctx.requireManager();
     final (from, to) = _period(req, ctx);
     final rows = await app.reports.summary(ctx.companyId, from, to,
-        departmentId: optUuid(req.q('department_id'), 'department_id'), includeBank: true);
+        departmentId: optUuid(req.q('department_id'), 'department_id'),
+        includeBank: true,
+        scopeSql: ctx.scopeSql('m'),
+        scopeParams: ctx.scopeParams);
     return _csv(app.reports.summaryCsv(rows), 'resumo-$from-$to.csv');
   }
 
@@ -185,7 +193,8 @@ class ReportRoutes {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
     final (from, to) = _period(req, ctx);
-    final rows = await app.reports.summary(ctx.companyId, from, to);
+    final rows = await app.reports.summary(ctx.companyId, from, to,
+        scopeSql: ctx.scopeSql('m'), scopeParams: ctx.scopeParams);
     final codes = ((ctx.company['settings'] as Map)['payroll_codes'] as Map?)?.cast<String, String>() ?? const {};
     await app.audit.log(companyId: ctx.companyId, userId: ctx.user.id, action: 'export', entity: 'payroll',
         data: {'from': from.toString(), 'to': to.toString()}, ip: req.clientIp);
@@ -196,7 +205,10 @@ class ReportRoutes {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
     final (from, to) = _period(req, ctx);
-    return _csv(await app.reports.punchesCsv(ctx.companyId, from, to, ctx.offset), 'marcacoes-$from-$to.csv');
+    return _csv(
+        await app.reports.punchesCsv(ctx.companyId, from, to, ctx.offset,
+            scopeSql: ctx.scopeSql('m'), scopeParams: ctx.scopeParams),
+        'marcacoes-$from-$to.csv');
   }
 
   Response _csv(String content, String filename) => fileResponse(
@@ -208,7 +220,7 @@ class ReportRoutes {
 
   Future<Response> _afd(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final (from, to) = _period(req, ctx);
     final company = (await app.db.one('SELECT * FROM companies WHERE id = @c', {'c': ctx.companyId}))!;
     final content = await app.reports.afd(company, from, to);
@@ -221,7 +233,7 @@ class ReportRoutes {
 
   Future<Response> _aej(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final (from, to) = _period(req, ctx);
     final company = (await app.db.one('SELECT * FROM companies WHERE id = @c', {'c': ctx.companyId}))!;
     final content = await app.reports.aej(company, from, to);
@@ -242,7 +254,7 @@ class ReportRoutes {
   /// Fecha o período para tratamento (folha enviada).
   Future<Response> _close(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final from = body.date('from');
     final to = body.date('to');
@@ -284,14 +296,15 @@ class ReportRoutes {
       '''
       SELECT m.id, m.schedule_id, m.admission_date, m.photo_url, u.name, d.name AS department_name
       FROM members m JOIN users u ON u.id = m.user_id LEFT JOIN departments d ON d.id = m.department_id
-      WHERE m.company_id = @c AND m.active ORDER BY u.name''',
-      {'c': ctx.companyId},
+      WHERE m.company_id = @c AND m.active${ctx.scopeSql('m')} ORDER BY u.name''',
+      {'c': ctx.companyId, ...ctx.scopeParams},
     );
     final dayStart = TimeFmt.fromWall(today.toDateTime(), ctx.offset);
     final dayEnd = TimeFmt.fromWall(today.addDays(1).toDateTime(), ctx.offset);
     final punches = await app.db.query(
-      '$punchSelectSql WHERE p.company_id = @c AND p.punched_at >= @s AND p.punched_at < @e AND NOT p.disregarded ORDER BY p.punched_at',
-      {'c': ctx.companyId, 's': dayStart, 'e': dayEnd},
+      '$punchSelectSql WHERE p.company_id = @c AND p.punched_at >= @s AND p.punched_at < @e AND NOT p.disregarded'
+      '${ctx.scopeSql('m')} ORDER BY p.punched_at',
+      {'c': ctx.companyId, 's': dayStart, 'e': dayEnd, ...ctx.scopeParams},
     );
     final holidays = await app.timesheets.holidays(ctx.companyId, today, today);
     final absencesToday = await app.db.query(
@@ -354,7 +367,10 @@ class ReportRoutes {
       });
     }
     final pending = await app.db.one(
-      "SELECT count(*)::int AS n FROM requests WHERE company_id = @c AND status = 'pending'", {'c': ctx.companyId});
+      "SELECT count(*)::int AS n FROM requests r JOIN members m ON m.id = r.member_id "
+      "WHERE r.company_id = @c AND r.status = 'pending'${ctx.scopeSql('m')}",
+      {'c': ctx.companyId, ...ctx.scopeParams},
+    );
     final outside = punches.where((p) => p['inside_geofence'] == false).length;
     final week = await app.db.query(
       '''
@@ -388,7 +404,7 @@ class ReportRoutes {
 
   Future<Response> _audit(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final rows = await app.db.query(
       '''
       SELECT a.*, u.name AS actor_name FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id

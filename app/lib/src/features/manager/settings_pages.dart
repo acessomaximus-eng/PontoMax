@@ -900,6 +900,7 @@ class _CompanyPageState extends ConsumerState<CompanyPage> {
     bool? reminders,
     bool? showBankToEmployee,
     bool? requireTimesheetSignature,
+    String? managerScope,
   }) {
     final s = _settings!;
     return CompanySettings(
@@ -918,6 +919,7 @@ class _CompanyPageState extends ConsumerState<CompanyPage> {
       showBankToEmployee: showBankToEmployee ?? s.showBankToEmployee,
       requireTimesheetSignature:
           requireTimesheetSignature ?? s.requireTimesheetSignature,
+      managerScope: managerScope ?? s.managerScope,
     );
   }
 
@@ -1108,6 +1110,20 @@ class _CompanyPageState extends ConsumerState<CompanyPage> {
                           onChanged: admin
                               ? (v) => _saveSettings(_copy(closingDay: v))
                               : null,
+                        ),
+                      ),
+                      SwitchListTile(
+                        value: s.managerScope == 'team',
+                        onChanged: admin
+                            ? (v) => _saveSettings(
+                                _copy(managerScope: v ? 'team' : 'all'),
+                              )
+                            : null,
+                        title: const Text(
+                          'Gestores veem apenas a própria equipe',
+                        ),
+                        subtitle: const Text(
+                          'Departamento do gestor e subordinados diretos. Administradores continuam vendo toda a empresa.',
                         ),
                       ),
                       SwitchListTile(

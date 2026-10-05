@@ -253,22 +253,24 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                       onTap: () =>
                           _download('/reports/punches.csv', 'text/csv'),
                     ),
-                    _ExportCard(
-                      icon: Icons.gavel_outlined,
-                      title: 'AFD — Arquivo Fonte de Dados',
-                      subtitle:
-                          'Portaria 671, leiaute 003 (REP-P) para fiscalização',
-                      onTap: () => _download('/reports/afd', 'text/plain'),
-                    ),
-                    _ExportCard(
-                      icon: Icons.description_outlined,
-                      title: 'AEJ — Arquivo Eletrônico de Jornada',
-                      subtitle: 'Jornadas tratadas, ausências e banco de horas',
-                      onTap: () => _download('/reports/aej', 'text/plain'),
-                    ),
+                    if (me.companyWide)
+                      _ExportCard(
+                        icon: Icons.gavel_outlined,
+                        title: 'AFD — Arquivo Fonte de Dados',
+                        subtitle: 'Portaria 671, leiaute 003 (REP-P) para fiscalização',
+                        onTap: () => _download('/reports/afd', 'text/plain'),
+                      ),
+                    if (me.companyWide)
+                      _ExportCard(
+                        icon: Icons.description_outlined,
+                        title: 'AEJ — Arquivo Eletrônico de Jornada',
+                        subtitle:
+                            'Jornadas tratadas, ausências e banco de horas',
+                        onTap: () => _download('/reports/aej', 'text/plain'),
+                      ),
                   ],
                 ),
-                _ClosingsSection(from: from, to: to),
+                if (me.companyWide) _ClosingsSection(from: from, to: to),
                 const SectionTitle('Resumo por colaborador'),
                 AsyncView(
                   value: summary,

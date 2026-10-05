@@ -30,6 +30,13 @@ class Me {
   Role get role => member?.role ?? Role.employee;
   bool get isManager => role.isManager;
   bool get isAdmin => role.isAdmin;
+
+  /// Gestor com visão apenas da própria equipe (departamento/subordinados).
+  bool get teamScoped =>
+      role == Role.manager && company?.settings.managerScope == 'team';
+
+  /// Pode alterar configurações e gerar arquivos da empresa toda.
+  bool get companyWide => isManager && !teamScoped;
   int get offset => company?.utcOffsetMinutes ?? -180;
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(

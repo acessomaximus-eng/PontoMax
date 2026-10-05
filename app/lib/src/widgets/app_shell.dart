@@ -118,7 +118,7 @@ List<NavGroup> navGroups(Me me) => [
         selectedIcon: Icons.insert_chart,
       ),
     ]),
-  if (me.isManager)
+  if (me.companyWide)
     NavGroup('Configurações', [
       const NavItem(
         '/escalas',

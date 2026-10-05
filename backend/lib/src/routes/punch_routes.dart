@@ -111,9 +111,11 @@ class PunchRoutes {
       WHERE p.company_id = @c AND (@m::uuid IS NULL OR p.member_id = @m::uuid)
         AND p.punched_at >= @s AND p.punched_at < @e
         AND (@outside = false OR p.inside_geofence = false)
+        ${ctx.scopeSql('m')}
       ORDER BY p.punched_at DESC
       LIMIT @limit''',
       {
+        ...ctx.scopeParams,
         'c': ctx.companyId,
         'm': effectiveMember,
         's': TimeFmt.fromWall(from.toDateTime(), ctx.offset),
@@ -173,7 +175,7 @@ class PunchRoutes {
     final row = await app.db.one('$punchSelectSql WHERE p.id = @id AND p.company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (row == null) throw const ApiError.notFound('Marcação não encontrada');
-    ctx.requireSelfOrManager(row['member_id'] as String);
+    await ctx.ensureCanSee(app.db, row['member_id'] as String);
     return jsonResponse(map.punch(row, ctx.offset));
   }
 
@@ -182,7 +184,7 @@ class PunchRoutes {
     final row = await app.db.one('SELECT member_id FROM punches WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (row == null) throw const ApiError.notFound('Marcação não encontrada');
-    ctx.requireSelfOrManager(row['member_id'] as String);
+    await ctx.ensureCanSee(app.db, row['member_id'] as String);
     final r = await app.punches.receipt(id, ctx.companyId);
     return jsonResponse(r.toJsonMap());
   }
@@ -192,7 +194,7 @@ class PunchRoutes {
     final row = await app.db.one('SELECT member_id FROM punches WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (row == null) throw const ApiError.notFound('Marcação não encontrada');
-    ctx.requireSelfOrManager(row['member_id'] as String);
+    await ctx.ensureCanSee(app.db, row['member_id'] as String);
     final r = await app.punches.receipt(id, ctx.companyId);
     final pdf = await app.reports.receiptPdf(r);
     return fileResponse(pdf, contentType: 'application/pdf', filename: 'comprovante-${r.nsr}.pdf', inline: true);
@@ -207,6 +209,7 @@ class PunchRoutes {
     final member = await app.db.one('SELECT id FROM members WHERE id = @id AND company_id = @c',
         {'id': memberId, 'c': ctx.companyId});
     if (member == null) throw const ApiError.notFound('Colaborador não encontrado');
+    await ctx.ensureCanSee(app.db, memberId);
     final date = body.date('date');
     final minutes = TimeFmt.parseHm(body.str('time', label: 'horário'));
     final reason = body.str('reason', label: 'justificativa');
@@ -247,9 +250,10 @@ class PunchRoutes {
 
   /// Bloqueia o tratamento de marcações em período fechado.
   Future<void> _ensurePunchOpen(MemberContext ctx, String id) async {
-    final p = await app.db.one('SELECT punched_at FROM punches WHERE id = @id AND company_id = @c',
+    final p = await app.db.one('SELECT punched_at, member_id FROM punches WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (p == null) throw const ApiError.notFound('Marcação não encontrada');
+    await ctx.ensureCanSee(app.db, p['member_id'] as String);
     final date = LocalDate.fromDateTime(TimeFmt.toWall(p['punched_at'] as DateTime, ctx.offset));
     await app.closings.ensureOpen(ctx.companyId, date);
   }

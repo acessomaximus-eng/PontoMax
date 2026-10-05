@@ -473,7 +473,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
   final _pin = TextEditingController();
   final _esocial = TextEditingController();
   Role _role = Role.employee;
-  String? _department, _position, _schedule;
+  String? _department, _position, _schedule, _manager;
   LocalDate? _admission;
   bool _allowAnywhere = false;
   Set<String> _geofences = {};
@@ -501,6 +501,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
           _department = m.departmentId;
           _position = m.positionId;
           _schedule = m.scheduleId;
+          _manager = m.managerId;
           _admission = m.admissionDate;
           _allowAnywhere = m.allowAnywhere;
           _geofences = m.geofenceIds.toSet();
@@ -528,6 +529,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
       'department_id': _department,
       'position_id': _position,
       'schedule_id': _schedule,
+      'manager_id': _manager,
       'admission_date': _admission?.toString(),
       'allow_anywhere': _allowAnywhere,
       'geofence_ids': _geofences.toList(),
@@ -578,6 +580,11 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
     final positions = ref.watch(positionsProvider).value ?? const [];
     final schedules = ref.watch(schedulesProvider).value ?? const [];
     final fences = ref.watch(geofencesProvider).value ?? const [];
+    final managers =
+        (ref.watch(membersProvider((status: 'active', q: null))).value ??
+                const <Member>[])
+            .where((m) => m.role.isManager)
+            .toList();
     return Scaffold(
       appBar: AppBar(
         title: Text(_editing ? 'Editar colaborador' : 'Novo colaborador'),
@@ -736,6 +743,30 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                               ),
                           ],
                           onChanged: (v) => setState(() => _schedule = v),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String?>(
+                          initialValue: managers.any((m) => m.id == _manager)
+                              ? _manager
+                              : null,
+                          decoration: const InputDecoration(
+                            labelText: 'Gestor responsável',
+                            helperText:
+                                'Usado na visão por equipe e no work chat',
+                          ),
+                          items: [
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text('—'),
+                            ),
+                            for (final m in managers)
+                              if (m.id != widget.memberId)
+                                DropdownMenuItem(
+                                  value: m.id,
+                                  child: Text(m.name),
+                                ),
+                          ],
+                          onChanged: (v) => setState(() => _manager = v),
                         ),
                         const SectionTitle('Marcação de ponto'),
                         SwitchListTile(

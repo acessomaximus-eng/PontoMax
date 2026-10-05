@@ -416,6 +416,53 @@ void main() {
     });
   });
 
+  group('Gestor com visão da equipe', () {
+    test('vê e trata apenas o próprio departamento', () async {
+      final (owner, company, _) = await api.register();
+      final depA = (await api.post('/departments', {'name': 'Loja A'}, token: owner)).json['id'];
+      final depB = (await api.post('/departments', {'name': 'Loja B'}, token: owner)).json['id'];
+      await api.put('/company/settings', {'manager_scope': 'team'}, token: owner);
+      Future<String> add(String name, String email, String cpf, String dep, {String role = 'employee'}) async {
+        final r = await api.post('/members', {
+          'name': name, 'email': email, 'cpf': cpf, 'password': 'senha1234', 'department_id': dep, 'role': role,
+        }, token: owner, company: company);
+        expect(r.status, 201, reason: '$r');
+        return r.json['id'] as String;
+      }
+      await add('Gerente A', 'ga@x.com', '11144477735', depA, role: 'manager');
+      final empA = await add('Func A', 'fa@x.com', '39053344705', depA);
+      final empB = await add('Func B', 'fb@x.com', '86288366757', depB);
+      final mgr = await api.login('ga@x.com');
+
+      final list = await api.get('/members', token: mgr);
+      expect(list.list.map((m) => m['name']), unorderedEquals(['Gerente A', 'Func A']));
+      expect((await api.get('/members/$empB', token: mgr)).status, 403);
+      expect((await api.get('/members/$empA', token: mgr)).status, 200);
+
+      final incB = await api.post('/punches/manual', {'member_id': empB, 'date': '2026-10-02', 'time': '08:00', 'reason': 'x'}, token: mgr);
+      expect(incB.status, 403);
+      final incA = await api.post('/punches/manual', {'member_id': empA, 'date': '2026-10-02', 'time': '08:00', 'reason': 'x'}, token: mgr);
+      expect(incA.status, 201);
+
+      final fb = await api.login('fb@x.com');
+      final reqB = await api.post('/requests', {'type': 'allowance', 'date': '2026-10-02', 'reason': 'x'}, token: fb);
+      expect((await api.post('/requests/${reqB.json['id']}/approve', {}, token: mgr)).status, 403);
+      final pending = await api.get('/requests?status=pending', token: mgr);
+      expect(pending.list, isEmpty);
+
+      final dash = await api.get('/dashboard', token: mgr);
+      expect(dash.json['totals']['members'], 2);
+      expect((await api.get('/reports/afd?from=2026-10-01&to=2026-10-31', token: mgr)).status, 403);
+      expect((await api.post('/departments', {'name': 'Nova'}, token: mgr)).status, 403);
+      expect((await api.get('/timesheet?member_id=$empB&from=2026-10-01&to=2026-10-31', token: mgr)).status, 403);
+      final summary = await api.get('/reports/summary?from=2026-10-01&to=2026-10-31', token: mgr);
+      expect((summary.json['rows'] as List).length, 2);
+
+      // Dono continua vendo todos.
+      expect((await api.get('/members', token: owner)).list.length, 4);
+    });
+  });
+
   group('Integrações', () {
     test('chave de API somente leitura e revogação', () async {
       final (token, _, _) = await api.register();

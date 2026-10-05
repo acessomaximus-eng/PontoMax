@@ -38,8 +38,10 @@ class MemberRoutes {
              OR u.cpf LIKE '%' || @q::text || '%' OR m.registration ILIKE '%' || @q::text || '%')
         AND (@d::uuid IS NULL OR m.department_id = @d::uuid)
         AND (@isManager OR m.id = @self OR m.role <> 'employee')
+        ${ctx.isManager ? ctx.scopeSql('m') : ''}
       ORDER BY u.name''',
       {
+        if (ctx.isManager) ...ctx.scopeParams,
         'c': ctx.companyId,
         'status': status,
         'q': search,
@@ -68,7 +70,7 @@ class MemberRoutes {
 
   Future<Response> _get(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireSelfOrManager(id);
+    await ctx.ensureCanSee(app.db, requireUuid(id));
     return jsonResponse(map.member(await _load(ctx.companyId, id)));
   }
 
@@ -192,6 +194,7 @@ class MemberRoutes {
   Future<Response> _update(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
+    await ctx.ensureCanSee(app.db, requireUuid(id));
     final body = await readJson(req);
     final current = await _load(ctx.companyId, id);
     final newRole = body.optStr('role') == null ? null : Role.fromCode(body.optStr('role'));
@@ -302,6 +305,7 @@ class MemberRoutes {
   Future<Response> _dismiss(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
+    await ctx.ensureCanSee(app.db, requireUuid(id));
     if (id == ctx.memberId) throw const ApiError.conflict('Você não pode desligar a si mesmo');
     final body = await readJson(req);
     final current = await _load(ctx.companyId, id);
@@ -330,6 +334,7 @@ class MemberRoutes {
   Future<Response> _reactivate(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
+    await ctx.ensureCanSee(app.db, requireUuid(id));
     final current = await _load(ctx.companyId, id);
     await app.db.tx((tx) async {
       await tx.execute('UPDATE members SET active = true, dismissal_date = NULL, updated_at = now() WHERE id = @id', {'id': id});
@@ -350,6 +355,7 @@ class MemberRoutes {
   Future<Response> _resetPassword(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
+    await ctx.ensureCanSee(app.db, requireUuid(id));
     final current = await _load(ctx.companyId, id);
     if (Role.fromCode(current['role'] as String).isAdmin && !ctx.isAdmin) throw const ApiError.forbidden();
     final password = temporaryPassword();
@@ -364,6 +370,7 @@ class MemberRoutes {
   Future<Response> _setPin(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
+    await ctx.ensureCanSee(app.db, requireUuid(id));
     await _load(ctx.companyId, id);
     final body = await readJson(req);
     final pin = body.str('pin');

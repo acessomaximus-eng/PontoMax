@@ -261,15 +261,18 @@ class ReportService {
   // -------------------------------------------------------------------------
 
   Future<List<Map<String, Object?>>> summary(String companyId, LocalDate from, LocalDate to,
-      {String? departmentId, bool includeBank = false}) async {
+      {String? departmentId,
+      bool includeBank = false,
+      String scopeSql = '',
+      Map<String, Object?> scopeParams = const {}}) async {
     final members = await app.db.query(
       '''
       SELECT m.id, u.name, u.cpf, m.registration, d.name AS department_name
       FROM members m JOIN users u ON u.id = m.user_id LEFT JOIN departments d ON d.id = m.department_id
       WHERE m.company_id = @c AND (m.active OR m.dismissal_date >= @f)
-        AND (@d::uuid IS NULL OR m.department_id = @d::uuid)
+        AND (@d::uuid IS NULL OR m.department_id = @d::uuid)$scopeSql
       ORDER BY u.name''',
-      {'c': companyId, 'f': from.toString(), 'd': departmentId},
+      {'c': companyId, 'f': from.toString(), 'd': departmentId, ...scopeParams},
     );
     final out = <Map<String, Object?>>[];
     for (final m in members) {
@@ -365,15 +368,17 @@ class ReportService {
     return s.contains(RegExp(r'[;"\n]')) ? '"${s.replaceAll('"', '""')}"' : s;
   }
 
-  Future<String> punchesCsv(String companyId, LocalDate from, LocalDate to, int offset) async {
+  Future<String> punchesCsv(String companyId, LocalDate from, LocalDate to, int offset,
+      {String scopeSql = '', Map<String, Object?> scopeParams = const {}}) async {
     final rows = await app.db.query(
       '''
       SELECT p.*, u.name, u.cpf, g.name AS geofence_name FROM punches p
       JOIN members m ON m.id = p.member_id JOIN users u ON u.id = m.user_id
       LEFT JOIN geofences g ON g.id = p.geofence_id
-      WHERE p.company_id = @c AND p.punched_at >= @s AND p.punched_at < @e
+      WHERE p.company_id = @c AND p.punched_at >= @s AND p.punched_at < @e$scopeSql
       ORDER BY u.name, p.punched_at''',
       {
+        ...scopeParams,
         'c': companyId,
         's': TimeFmt.fromWall(from.toDateTime(), offset),
         'e': TimeFmt.fromWall(to.addDays(1).toDateTime(), offset),

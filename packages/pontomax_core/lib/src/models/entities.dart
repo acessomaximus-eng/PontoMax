@@ -130,6 +130,10 @@ class CompanySettings {
   /// Exige assinatura mensal do espelho de ponto pelo colaborador.
   final bool requireTimesheetSignature;
 
+  /// Visão dos gestores: `all` (toda a empresa) ou `team` (departamento e
+  /// subordinados diretos). Proprietários e administradores sempre veem tudo.
+  final String managerScope;
+
   const CompanySettings({
     this.requirePhoto = false,
     this.requireGeofence = false,
@@ -144,6 +148,7 @@ class CompanySettings {
     this.reminders = true,
     this.showBankToEmployee = true,
     this.requireTimesheetSignature = true,
+    this.managerScope = 'all',
   });
 
   factory CompanySettings.fromJson(Json j) => CompanySettings(
@@ -160,6 +165,7 @@ class CompanySettings {
         reminders: _b(j['reminders'], true),
         showBankToEmployee: _b(j['show_bank_to_employee'], true),
         requireTimesheetSignature: _b(j['require_timesheet_signature'], true),
+        managerScope: _sn(j['manager_scope']) == 'team' ? 'team' : 'all',
       );
 
   Json toJson() => {
@@ -176,6 +182,7 @@ class CompanySettings {
         'reminders': reminders,
         'show_bank_to_employee': showBankToEmployee,
         'require_timesheet_signature': requireTimesheetSignature,
+        'manager_scope': managerScope,
       };
 
   /// Período de apuração que contém [date], respeitando o dia de fechamento.

@@ -49,9 +49,37 @@ class MemberContext {
     if (!isAdmin) throw const ApiError.forbidden('Apenas administradores podem realizar esta ação');
   }
 
-  /// Colaborador pode ver apenas os próprios dados; gestor vê todos.
-  void requireSelfOrManager(String memberId) {
-    if (memberId != this.memberId && !isManager) throw const ApiError.forbidden();
+  /// Gestor com visão restrita à equipe (departamento e subordinados).
+  bool get teamScoped => role == Role.manager && settings.managerScope == 'team';
+
+  /// Filtro SQL de colaboradores visíveis (alias da tabela `members`).
+  /// Use junto com [scopeParams].
+  String scopeSql(String alias) => teamScoped
+      ? ' AND ($alias.id = @scope_me::uuid OR $alias.manager_id = @scope_me::uuid'
+          ' OR ($alias.department_id IS NOT NULL AND $alias.department_id = @scope_dep::uuid))'
+      : '';
+
+  Map<String, Object?> get scopeParams =>
+      teamScoped ? {'scope_me': memberId, 'scope_dep': member['department_id']} : const {};
+
+  /// Garante que o usuário pode ver/tratar os dados do colaborador.
+  Future<void> ensureCanSee(Db db, String targetMemberId) async {
+    if (targetMemberId == memberId) return;
+    if (!isManager) throw const ApiError.forbidden();
+    if (!teamScoped) return;
+    final r = await db.one(
+      'SELECT 1 AS ok FROM members m WHERE m.id = @id AND m.company_id = @c${scopeSql('m')}',
+      {'id': targetMemberId, 'c': companyId, ...scopeParams},
+    );
+    if (r == null) throw const ApiError.forbidden('Colaborador fora da sua equipe');
+  }
+
+  /// Ações que afetam a empresa toda (configurações, arquivos legais...).
+  void requireCompanyWide() {
+    requireManager();
+    if (teamScoped) {
+      throw const ApiError.forbidden('Disponível apenas para gestores com visão de toda a empresa');
+    }
   }
 }
 

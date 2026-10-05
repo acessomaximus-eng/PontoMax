@@ -200,7 +200,7 @@ class CompanyRoutes {
 
   Future<Response> _createNamed(Request req, String table) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final row = await app.db.one(
       'INSERT INTO $table (company_id, name, description) VALUES (@c, @n, @d) RETURNING *',
@@ -213,7 +213,7 @@ class CompanyRoutes {
 
   Future<Response> _updateNamed(Request req, String table, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final row = await app.db.one(
       'UPDATE $table SET name = COALESCE(@n, name), description = COALESCE(@d, description) '
@@ -227,7 +227,7 @@ class CompanyRoutes {
 
   Future<Response> _deleteNamed(Request req, String table, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final n = await app.db.execute('DELETE FROM $table WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (n == 0) throw const ApiError.notFound();
@@ -251,7 +251,7 @@ class CompanyRoutes {
 
   Future<Response> _createHoliday(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final scope = body.optStr('scope') ?? 'company';
     if (!const {'national', 'state', 'city', 'company'}.contains(scope)) {
@@ -273,7 +273,7 @@ class CompanyRoutes {
 
   Future<Response> _importNational(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final year = body.optInt('year') ?? LocalDate.fromDateTime(app.now()).year;
     final includeOptional = body.optBool('include_optional') ?? false;
@@ -293,7 +293,7 @@ class CompanyRoutes {
 
   Future<Response> _updateHoliday(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final row = await app.db.one(
       '''
@@ -316,7 +316,7 @@ class CompanyRoutes {
 
   Future<Response> _deleteHoliday(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final n = await app.db.execute('DELETE FROM holidays WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (n == 0) throw const ApiError.notFound();
@@ -349,7 +349,7 @@ class CompanyRoutes {
 
   Future<Response> _createGeofence(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final p = _geofenceParams(body);
     final row = await app.db.one(
@@ -363,7 +363,7 @@ class CompanyRoutes {
 
   Future<Response> _updateGeofence(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final p = _geofenceParams(body, partial: true);
     final row = await app.db.one(
@@ -380,7 +380,7 @@ class CompanyRoutes {
 
   Future<Response> _deleteGeofence(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final n = await app.db.execute('DELETE FROM geofences WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (n == 0) throw const ApiError.notFound();
@@ -449,7 +449,7 @@ class CompanyRoutes {
 
   Future<Response> _createSchedule(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final name = body.str('name', label: 'nome');
     final s = _parseSchedule(body);
@@ -463,7 +463,7 @@ class CompanyRoutes {
 
   Future<Response> _updateSchedule(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final s = body.containsKey('definition') ? _parseSchedule(body) : null;
     final row = await app.db.one(
@@ -483,7 +483,7 @@ class CompanyRoutes {
 
   Future<Response> _deleteSchedule(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final inUse = await app.db.one('SELECT count(*)::int AS n FROM members WHERE schedule_id = @id AND active', {'id': requireUuid(id)});
     if ((inUse!['n'] as int) > 0) {
       throw const ApiError.conflict('Escala em uso por colaboradores. Altere a escala deles antes de excluir.');
@@ -504,7 +504,7 @@ class CompanyRoutes {
 
   Future<Response> _listDevices(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final rows = await app.db.query('$_deviceSelect WHERE d.company_id = @c ORDER BY d.name', {'c': ctx.companyId});
     return jsonResponse([
       for (final r in rows)
@@ -514,7 +514,7 @@ class CompanyRoutes {
 
   Future<Response> _createDevice(Request req) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final code = randomCode(8);
     final row = await app.db.one(
@@ -535,7 +535,7 @@ class CompanyRoutes {
 
   Future<Response> _updateDevice(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final body = await readJson(req);
     final n = await app.db.execute(
       '''
@@ -560,7 +560,7 @@ class CompanyRoutes {
   /// Gera novo código de ativação (revoga o token atual do quiosque).
   Future<Response> _newActivation(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final code = randomCode(8);
     final n = await app.db.execute(
       'UPDATE devices SET activation_code = @code, activation_expires_at = @exp, token_hash = NULL '
@@ -575,7 +575,7 @@ class CompanyRoutes {
 
   Future<Response> _deleteDevice(Request req, String id) async {
     final ctx = await app.sessions.member(req);
-    ctx.requireManager();
+    ctx.requireCompanyWide();
     final n = await app.db.execute('DELETE FROM devices WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (n == 0) throw const ApiError.notFound();

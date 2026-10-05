@@ -52,9 +52,11 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
       WHERE r.company_id = @c AND (@mine = false OR r.member_id = @self)
         AND (@status::text IS NULL OR r.status = @status::text)
         AND (@m::uuid IS NULL OR r.member_id = @m::uuid)
+        ${mine ? '' : ctx.scopeSql('m')}
       ORDER BY CASE WHEN r.status = 'pending' THEN 0 ELSE 1 END, r.created_at DESC
       LIMIT @limit''',
       {
+        if (!mine) ...ctx.scopeParams,
         'c': ctx.companyId,
         'mine': mine,
         'self': ctx.memberId,
@@ -71,7 +73,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
     final row = await app.db.one('$_requestSelect WHERE r.id = @id AND r.company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (row == null) throw const ApiError.notFound('Solicitação não encontrada');
-    ctx.requireSelfOrManager(row['member_id'] as String);
+    await ctx.ensureCanSee(app.db, row['member_id'] as String);
     return jsonResponse(map.request(row));
   }
 
@@ -104,6 +106,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
     final attachment = optUuid(body.optStr('attachment_file_id'), 'attachment_file_id');
     // Gestor pode criar solicitação para outro colaborador.
     final memberId = ctx.isManager ? (optUuid(body.optStr('member_id'), 'member_id') ?? ctx.memberId) : ctx.memberId;
+    await ctx.ensureCanSee(app.db, memberId);
 
     final row = await app.db.tx((tx) async {
       final r = await tx.one(
@@ -151,6 +154,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
       final type = RequestType.fromCode(r['type'] as String);
       final date = LocalDate.fromDateTime(r['date'] as DateTime);
       final memberId = r['member_id'] as String;
+      await ctx.ensureCanSee(tx, memberId);
       final endDate = r['end_date'] == null ? date : LocalDate.fromDateTime(r['end_date'] as DateTime);
       await app.closings.ensureOpen(ctx.companyId, date, endDate, tx);
 
@@ -212,6 +216,10 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
     ctx.requireManager();
     final body = await readJson(req);
     final note = body.str('note', label: 'motivo da recusa');
+    final target = await app.db.one('SELECT member_id FROM requests WHERE id = @id AND company_id = @c',
+        {'id': requireUuid(id), 'c': ctx.companyId});
+    if (target == null) throw const ApiError.notFound('Solicitação não encontrada');
+    await ctx.ensureCanSee(app.db, target['member_id'] as String);
     final row = await app.db.tx((tx) async {
       final r = await tx.one(
         "UPDATE requests SET status = 'rejected', reviewer_id = @by, reviewed_at = now(), review_note = @note "
@@ -256,8 +264,10 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
       $_absenceSelect
       WHERE a.company_id = @c AND (@m::uuid IS NULL OR a.member_id = @m::uuid)
         AND (@f::date IS NULL OR a.end_date >= @f::date) AND (@t::date IS NULL OR a.start_date <= @t::date)
+        ${ctx.isManager ? ctx.scopeSql('m') : ''}
       ORDER BY a.start_date DESC LIMIT 500''',
-      {'c': ctx.companyId, 'm': memberId, 'f': req.qDate('from')?.toString(), 't': req.qDate('to')?.toString()},
+      {
+        if (ctx.isManager) ...ctx.scopeParams,'c': ctx.companyId, 'm': memberId, 'f': req.qDate('from')?.toString(), 't': req.qDate('to')?.toString()},
     );
     return jsonResponse([for (final r in rows) map.absence(r)]);
   }
@@ -272,6 +282,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
     if (end < start) throw const ApiError.badRequest('Data final anterior à inicial');
     final m = await app.db.one('SELECT id FROM members WHERE id = @id AND company_id = @c', {'id': memberId, 'c': ctx.companyId});
     if (m == null) throw const ApiError.notFound('Colaborador não encontrado');
+    await ctx.ensureCanSee(app.db, memberId);
     await app.closings.ensureOpen(ctx.companyId, start, end);
     final row = await app.db.one(
       '''
@@ -297,9 +308,10 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
   Future<Response> _deleteAbsence(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
-    final a = await app.db.one('SELECT start_date, end_date FROM absences WHERE id = @id AND company_id = @c',
+    final a = await app.db.one('SELECT start_date, end_date, member_id FROM absences WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (a == null) throw const ApiError.notFound();
+    await ctx.ensureCanSee(app.db, a['member_id'] as String);
     await app.closings.ensureOpen(ctx.companyId, LocalDate.fromDateTime(a['start_date'] as DateTime),
         LocalDate.fromDateTime(a['end_date'] as DateTime));
     final n = await app.db.execute('DELETE FROM absences WHERE id = @id AND company_id = @c', {'id': requireUuid(id), 'c': ctx.companyId});
@@ -315,7 +327,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
   Future<Response> _bank(Request req) async {
     final ctx = await app.sessions.member(req);
     final memberId = optUuid(req.q('member_id'), 'member_id') ?? ctx.memberId;
-    ctx.requireSelfOrManager(memberId);
+    await ctx.ensureCanSee(app.db, memberId);
     if (!ctx.isManager && !ctx.settings.showBankToEmployee) {
       throw const ApiError.forbidden('A empresa não disponibiliza o banco de horas para consulta');
     }
@@ -347,6 +359,7 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
     if (type == BankEntryType.credit) minutes = minutes.abs();
     final m = await app.db.one('SELECT id FROM members WHERE id = @id AND company_id = @c', {'id': memberId, 'c': ctx.companyId});
     if (m == null) throw const ApiError.notFound('Colaborador não encontrado');
+    await ctx.ensureCanSee(app.db, memberId);
     final entryDate = body.optDate('date') ?? LocalDate.fromDateTime(TimeFmt.toWall(app.now(), ctx.offset));
     await app.closings.ensureOpen(ctx.companyId, entryDate);
     final row = await app.db.one(
@@ -373,9 +386,10 @@ JOIN members m ON m.id = a.member_id JOIN users u ON u.id = m.user_id
   Future<Response> _deleteEntry(Request req, String id) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
-    final e = await app.db.one('SELECT date FROM bank_entries WHERE id = @id AND company_id = @c',
+    final e = await app.db.one('SELECT date, member_id FROM bank_entries WHERE id = @id AND company_id = @c',
         {'id': requireUuid(id), 'c': ctx.companyId});
     if (e == null) throw const ApiError.notFound();
+    await ctx.ensureCanSee(app.db, e['member_id'] as String);
     await app.closings.ensureOpen(ctx.companyId, LocalDate.fromDateTime(e['date'] as DateTime));
     final n = await app.db.execute('DELETE FROM bank_entries WHERE id = @id AND company_id = @c', {'id': requireUuid(id), 'c': ctx.companyId});
     if (n == 0) throw const ApiError.notFound();

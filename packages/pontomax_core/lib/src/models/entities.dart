@@ -207,6 +207,7 @@ class Company {
   final String timezone;
   final int utcOffsetMinutes;
   final CompanySettings settings;
+  final String? defaultScheduleId;
   final DateTime? createdAt;
 
   const Company({
@@ -222,6 +223,7 @@ class Company {
     this.timezone = 'America/Sao_Paulo',
     this.utcOffsetMinutes = -180,
     this.settings = const CompanySettings(),
+    this.defaultScheduleId,
     this.createdAt,
   });
 
@@ -238,6 +240,7 @@ class Company {
         timezone: _sn(j['timezone']) ?? 'America/Sao_Paulo',
         utcOffsetMinutes: _i(j['utc_offset_minutes'], -180),
         settings: CompanySettings.fromJson(_m(j['settings'])),
+        defaultScheduleId: _sn(j['default_schedule_id']) ?? _sn(_m(j['settings'])['default_schedule_id']),
         createdAt: _dt(j['created_at']),
       );
 
@@ -254,6 +257,7 @@ class Company {
         'timezone': timezone,
         'utc_offset_minutes': utcOffsetMinutes,
         'settings': settings.toJson(),
+        'default_schedule_id': defaultScheduleId,
         'created_at': createdAt?.toIso8601String(),
       };
 }

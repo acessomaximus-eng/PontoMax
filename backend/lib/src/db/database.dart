@@ -46,12 +46,17 @@ class Database extends Db {
     final uri = Uri.parse(url);
     final userInfo = uri.userInfo.split(':');
     final ssl = uri.queryParameters['sslmode'];
+    // `?host=/cloudsql/PROJETO:REGIAO:INSTANCIA` → socket Unix (Cloud SQL).
+    final socketDir = uri.queryParameters['host'];
+    final unix = socketDir != null && socketDir.startsWith('/');
+    final port = uri.hasPort ? uri.port : 5432;
     final endpoint = Endpoint(
-      host: uri.host.isEmpty ? 'localhost' : uri.host,
-      port: uri.hasPort ? uri.port : 5432,
+      host: unix ? '$socketDir/.s.PGSQL.$port' : (uri.host.isEmpty ? 'localhost' : uri.host),
+      port: port,
       database: uri.pathSegments.isEmpty ? 'pontomax' : uri.pathSegments.first,
       username: userInfo.isNotEmpty ? Uri.decodeComponent(userInfo[0]) : null,
       password: userInfo.length > 1 ? Uri.decodeComponent(userInfo[1]) : null,
+      isUnixSocket: unix,
     );
     final pool = Pool.withEndpoints(
       [endpoint],

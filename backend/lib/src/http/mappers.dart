@@ -36,9 +36,9 @@ class Mappers {
         timezone: r['timezone'] as String? ?? 'America/Sao_Paulo',
         utcOffsetMinutes: r['utc_offset_minutes'] as int? ?? -180,
         settings: CompanySettings.fromJson(settings),
+        defaultScheduleId: settings['default_schedule_id'] as String?,
         createdAt: r['created_at'] is DateTime ? r['created_at'] as DateTime : null,
       ).toJson(),
-      'default_schedule_id': settings['default_schedule_id'],
     };
   }
 

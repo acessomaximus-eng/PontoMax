@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PontoMax — Ponto eletrônico REP-P simples e dentro da lei</title>
+  <meta name="description" content="Controle de ponto eletrônico REP-P (Portaria 671): marcação pelo celular com GPS e selfie, quiosque com QR Code, banco de horas, horas extras automáticas, espelho de ponto, AFD e AEJ.">
+  <meta name="theme-color" content="#1E40AF">
+  <meta property="og:title" content="PontoMax — Ponto eletrônico REP-P">
+  <meta property="og:description" content="Marcação pelo celular, tablet ou computador. Banco de horas, horas extras e relatórios automáticos.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="/app/favicon.png">
+  <style>
+    :root {
+      --brand: #1E40AF; --brand-2: #0E7490; --accent: #10B981; --ink: #0F172A; --muted: #64748B;
+      --bg: #FFFFFF; --soft: #F6F7FB; --line: #E2E8F0; --card: #FFFFFF;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #E2E8F0; --muted: #94A3B8; --bg: #0B1120; --soft: #111827; --line: #1F2937; --card: #111827; }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: "Noto Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.55; }
+    a { color: inherit; }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+    header { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+    nav { display: flex; align-items: center; gap: 24px; height: 64px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 900; font-size: 20px; text-decoration: none; }
+    .logo i { width: 34px; height: 34px; border-radius: 10px; background: var(--brand); display: grid; place-items: center; color: #fff; font-style: normal; }
+    nav .links { display: flex; gap: 20px; margin-left: auto; font-size: 15px; }
+    nav .links a { text-decoration: none; color: var(--muted); }
+    nav .links a:hover { color: var(--ink); }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 12px; font-weight: 700; text-decoration: none; border: 1px solid transparent; }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .btn.ghost { border-color: var(--line); }
+    .btn.white { background: #fff; color: var(--brand); }
+    .hero { background: linear-gradient(135deg, #1E3A8A, #1E40AF 45%, #0E7490); color: #fff; padding: 72px 0 88px; }
+    .hero .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; align-items: center; }
+    .hero h1 { font-size: clamp(32px, 5vw, 52px); line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.02em; }
+    .hero p.lead { font-size: 19px; opacity: .9; margin: 0 0 28px; }
+    .hero .ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+    .badges span { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); padding: 6px 12px; border-radius: 999px; font-size: 13px; }
+    .phone { width: 280px; height: 560px; margin: 0 auto; border-radius: 40px; background: #0F172A; padding: 14px; box-shadow: 0 40px 80px rgba(0,0,0,.35); }
+    .screen { height: 100%; border-radius: 28px; background: #F6F7FB; color: #0F172A; padding: 24px 18px; display: flex; flex-direction: column; align-items: center; }
+    .screen small { color: #64748B; }
+    .clock { font-size: 44px; font-weight: 900; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+    .punch { margin: 26px 0 18px; width: 150px; height: 150px; border-radius: 50%; background: linear-gradient(135deg, #10B981, #059669); display: grid; place-items: center; color: #fff; font-weight: 800; box-shadow: 0 16px 40px rgba(16,185,129,.4); text-align: center; }
+    .punch b { font-size: 46px; display: block; line-height: 1; }
+    .row { width: 100%; background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 12px; display: flex; justify-content: space-between; font-size: 14px; margin-top: 8px; }
+    section { padding: 80px 0; }
+    section.soft { background: var(--soft); }
+    h2 { font-size: clamp(26px, 3.4vw, 38px); margin: 0 0 12px; letter-spacing: -0.01em; }
+    .sub { color: var(--muted); font-size: 18px; margin: 0 0 40px; max-width: 760px; }
+    .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+    .card .ico { font-size: 26px; }
+    .card h3 { margin: 10px 0 6px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+    ul.check { list-style: none; padding: 0; margin: 0; }
+    ul.check li { padding: 10px 0 10px 34px; position: relative; border-bottom: 1px solid var(--line); }
+    ul.check li::before { content: "✓"; position: absolute; left: 0; top: 9px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 900; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: s; }
+    .steps .card::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--brand); color: #fff; font-weight: 900; margin-bottom: 8px; }
+    .platforms { display: flex; flex-wrap: wrap; gap: 12px; }
+    .platforms span { border: 1px solid var(--line); background: var(--card); padding: 12px 18px; border-radius: 12px; font-weight: 600; }
+    details { border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 16px 20px; margin-bottom: 10px; }
+    details summary { cursor: pointer; font-weight: 700; }
+    details p { color: var(--muted); margin: 10px 0 0; }
+    .cta { background: linear-gradient(135deg, #1E3A8A, #0E7490); color: #fff; border-radius: 24px; padding: 48px; display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; }
+    footer { border-top: 1px solid var(--line); padding: 32px 0; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    @media (max-width: 860px) {
+      .hero .grid, .two { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      nav .links { display: none; }
+      .phone { transform: scale(.9); }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <nav class="wrap">
+    <a class="logo" href="/"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></i>PontoMax</a>
+    <div class="links">
+      <a href="#recursos">Recursos</a>
+      <a href="#lei">Conformidade</a>
+      <a href="#como">Como funciona</a>
+      <a href="#faq">Dúvidas</a>
+    </div>
+    <a class="btn ghost" href="/app/">Entrar</a>
+  </nav>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap grid">
+      <div>
+        <h1>Ponto eletrônico simples, seguro e 100% dentro da lei.</h1>
+        <p class="lead">Seus colaboradores registram o ponto pelo celular, tablet ou computador. O PontoMax calcula horas extras, banco de horas e adicional noturno sozinho — e gera AFD, AEJ e espelho de ponto prontos para a fiscalização.</p>
+        <div class="ctas">
+          <a class="btn primary" href="/app/#/cadastro">Começar agora</a>
+          <a class="btn white" href="/app/">Acessar o sistema</a>
+        </div>
+        <div class="badges">
+          <span>REP-P · Portaria 671/2021</span><span>GPS + perímetro</span><span>Selfie</span><span>QR Code dinâmico</span><span>Funciona off-line</span><span>LGPD</span>
+        </div>
+      </div>
+      <div aria-hidden="true">
+        <div class="phone"><div class="screen">
+          <small>Segunda-feira, 5 de outubro</small>
+          <div class="clock" id="clock">08:00:00</div>
+          <small>Horário oficial sincronizado</small>
+          <div class="punch"><div><svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><br>Entrada</div></div>
+          <div class="row"><span>Trabalhado</span><b>00:00</b></div>
+          <div class="row"><span>Prevista hoje</span><b>08:48</b></div>
+          <div class="row"><span>📍 Loja Paulista</span><b>dentro</b></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <section id="recursos">
+    <div class="wrap">
+      <h2>Tudo o que você precisa para gerenciar a jornada</h2>
+      <p class="sub">Do registro da marcação ao fechamento da folha, sem planilhas e sem papel.</p>
+      <div class="features">
+        <div class="card"><div class="ico">📱</div><h3>Ponto no celular</h3><p>Marcação com relógio oficial, localização GPS e comprovante digital na hora.</p></div>
+        <div class="card"><div class="ico">📍</div><h3>Perímetro (geocerca)</h3><p>Defina os locais permitidos no mapa. Marcações fora do raio são bloqueadas ou sinalizadas.</p></div>
+        <div class="card"><div class="ico">🤳</div><h3>Selfie na marcação</h3><p>Foto do colaborador no momento do registro, visível para o gestor.</p></div>
+        <div class="card"><div class="ico">🔳</div><h3>QR Code dinâmico</h3><p>O quiosque exibe um QR que muda a cada 30 s: impossível marcar com foto do código.</p></div>
+        <div class="card"><div class="ico">🖥️</div><h3>Modo quiosque</h3><p>Transforme um tablet em relógio de ponto coletivo com PIN, crachá ou QR pessoal.</p></div>
+        <div class="card"><div class="ico">📶</div><h3>Funciona sem internet</h3><p>Marcações off-line ficam guardadas e são enviadas automaticamente depois.</p></div>
+        <div class="card"><div class="ico">🧮</div><h3>Cálculos automáticos</h3><p>Horas extras 50%/100%, adicional noturno com hora reduzida, faltas, atrasos e tolerâncias da CLT.</p></div>
+        <div class="card"><div class="ico">🏦</div><h3>Banco de horas</h3><p>Regime de horas extras, banco de horas ou híbrido, com saldo sempre atualizado.</p></div>
+        <div class="card"><div class="ico">🗓️</div><h3>Escalas flexíveis</h3><p>Semanal, 12x36, 6x1, noturna, flexível e intervalo pré-assinalado.</p></div>
+        <div class="card"><div class="ico">📝</div><h3>Solicitações e atestados</h3><p>Esquecimento, ajuste, atestado com foto, abono, folga e férias, com aprovação do gestor.</p></div>
+        <div class="card"><div class="ico">✍️</div><h3>Espelho com assinatura</h3><p>O colaborador assina o espelho mensal eletronicamente (ou com ressalvas).</p></div>
+        <div class="card"><div class="ico">📊</div><h3>Painel do gestor</h3><p>Quem está trabalhando, ausentes, atrasos, mapa das marcações e pendências em tempo real.</p></div>
+        <div class="card"><div class="ico">💬</div><h3>Work chat</h3><p>Conversa direta entre colaborador e gestor, com imagens, dentro do app.</p></div>
+        <div class="card"><div class="ico">🔔</div><h3>Lembretes</h3><p>Avisos antes de cada marcação, de acordo com a escala de cada pessoa.</p></div>
+        <div class="card"><div class="ico">🏢</div><h3>Multiempresa</h3><p>Ideal para grupos e contadores: troque de empresa com um toque.</p></div>
+        <div class="card"><div class="ico">🔎</div><h3>Auditoria completa</h3><p>Quem alterou o quê e quando: todo tratamento do ponto fica registrado.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="lei" class="soft">
+    <div class="wrap two">
+      <div>
+        <h2>Feito para a Portaria 671</h2>
+        <p class="sub">O PontoMax é um REP-P (Registrador Eletrônico de Ponto via Programa) com todos os controles exigidos pela legislação trabalhista.</p>
+        <a class="btn primary" href="/app/#/cadastro">Cadastrar minha empresa</a>
+      </div>
+      <ul class="check">
+        <li><b>AFD (leiaute 003)</b> com NSR sequencial, CRC-16 e hash SHA-256 encadeado das marcações.</li>
+        <li><b>AEJ</b> — Arquivo Eletrônico de Jornada com marcações tratadas, ausências e banco de horas.</li>
+        <li><b>Comprovante de registro</b> digital para cada marcação (PDF e na tela do app).</li>
+        <li><b>Relógio sincronizado</b> com a hora do servidor e exibição com segundos.</li>
+        <li><b>Marcações originais imutáveis</b>: o tratamento é feito por inclusão/desconsideração justificada.</li>
+        <li><b>Regras da CLT</b>: tolerância de 5/10 min (art. 58), interjornada (art. 66), intrajornada (art. 71), hora noturna (art. 73).</li>
+        <li><b>LGPD</b>: dados criptografados em trânsito, controle de acesso por perfil e trilha de auditoria.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="como">
+    <div class="wrap">
+      <h2>Comece em 3 passos</h2>
+      <p class="sub">Em poucos minutos sua equipe já está registrando o ponto.</p>
+      <div class="steps">
+        <div class="card"><h3>Cadastre a empresa</h3><p>A escala comercial e os feriados nacionais já vêm configurados.</p></div>
+        <div class="card"><h3>Convide a equipe</h3><p>Cada colaborador recebe o acesso por e-mail e baixa o app.</p></div>
+        <div class="card"><h3>Acompanhe tudo</h3><p>Aprove solicitações, trate o ponto e exporte para a folha.</p></div>
+      </div>
+      <h2 style="margin-top:64px">Disponível em todas as telas</h2>
+      <div class="platforms">
+        <span>🤖 Android</span><span>🍎 iPhone (iOS)</span><span>🌐 Navegador</span><span>🪟 Windows</span><span>💻 macOS</span><span>🐧 Linux</span><span>📟 Tablet (quiosque)</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" class="soft">
+    <div class="wrap">
+      <h2>Dúvidas frequentes</h2>
+      <details><summary>O PontoMax substitui o relógio de ponto físico?</summary><p>Sim. A Portaria 671 permite o REP-P (programa), que pode ser usado no celular, computador ou tablet, desde que gere o AFD e o comprovante — o PontoMax faz tudo isso.</p></details>
+      <details><summary>E se o colaborador estiver sem internet?</summary><p>A marcação é registrada no aparelho com o horário sincronizado e enviada automaticamente quando a conexão voltar. No AFD ela é identificada como off-line, como exige a norma.</p></details>
+      <details><summary>Como evitar fraudes?</summary><p>Perímetro por GPS, detecção de GPS falso, selfie, QR Code dinâmico que expira em segundos e bloqueio de marcações duplicadas.</p></details>
+      <details><summary>Consigo integrar com a folha de pagamento?</summary><p>Sim. Exporte os eventos (horas extras, adicional noturno, faltas) em CSV, além do AFD e AEJ para o seu sistema de folha ou contador.</p></details>
+      <details><summary>Funciona para escala 12x36 e turno da noite?</summary><p>Sim. Escalas cíclicas, jornadas que viram a meia-noite, hora noturna reduzida e prorrogação (Súmula 60 do TST) são calculadas automaticamente.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta">
+        <div>
+          <h2 style="margin:0">Pronto para simplificar o ponto da sua empresa?</h2>
+          <p style="margin:8px 0 0;opacity:.9">Crie sua conta e comece a usar hoje mesmo.</p>
+        </div>
+        <a class="btn white" href="/app/#/cadastro">Criar conta</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© <span id="year">2026</span> PontoMax · Controle de ponto eletrônico</span>
+    <span><a href="/privacidade.html">Privacidade (LGPD)</a> · <a href="/termos.html">Termos de uso</a> · <a href="/app/">Entrar</a></span>
+  </div>
+</footer>
+<script>
+  const pad = (n) => String(n).padStart(2, '0');
+  function tick() {
+    const d = new Date();
+    document.getElementById('clock').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  tick(); setInterval(tick, 1000);
+  document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

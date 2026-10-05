@@ -6,6 +6,19 @@ import 'package:pontomax_backend/src/seed.dart';
 import 'package:shelf/shelf_io.dart' as io;
 
 Future<void> main(List<String> args) async {
+  // Usado pelo HEALTHCHECK do Docker.
+  if (args.contains('--healthcheck')) {
+    final port = Platform.environment['PORT'] ?? '8080';
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+      final req = await client.getUrl(Uri.parse('http://127.0.0.1:$port/api/v1/health'));
+      final res = await req.close();
+      exit(res.statusCode == 200 ? 0 : 1);
+    } catch (_) {
+      exit(1);
+    }
+  }
+
   Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((r) {
     stdout.writeln('${r.time.toIso8601String()} ${r.level.name} [${r.loggerName}] ${r.message}'

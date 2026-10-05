@@ -8,13 +8,14 @@ Controle de ponto eletrônico **REP-P (Portaria MTP 671/2021)** multiplataforma 
 
 | Área | Recursos |
 |---|---|
-| **Marcação** | App (celular/desktop/web) com relógio sincronizado com o servidor · GPS com perímetro (geocerca) e detecção de GPS falso · selfie · QR Code dinâmico (muda a cada 30 s) · modo **quiosque** (tablet) com PIN, crachá ou QR pessoal · **off-line** com sincronização idempotente · anti-duplicidade · comprovante digital (tela e PDF) |
+| **Marcação** | App (celular/desktop/web) com relógio sincronizado com o servidor · GPS com perímetro (geocerca) e detecção de GPS falso · selfie · QR Code dinâmico (muda a cada 30 s) · modo **quiosque** (tablet) com PIN, crachá ou QR pessoal · **off-line** (app e quiosque) com sincronização idempotente · anti-duplicidade · comprovante digital (tela e PDF) |
 | **Cálculo (CLT)** | Tolerância 5/10 min (art. 58 §1º, Súmula 366) · horas extras 50%/100% · faltas e atrasos · adicional noturno com hora reduzida 52m30s e prorrogação (Súmula 60) · interjornada (art. 66) · intrajornada (art. 71) · limite de 2h extras (art. 59) · feriados · abonos, atestados, férias, afastamentos e folgas |
-| **Escalas** | Semanal, cíclica (12x36, 6x1...), noturna (vira a meia-noite), flexível, intervalo pré-assinalado; regimes **horas extras**, **banco de horas** e **híbrido** |
+| **Escalas** | Semanal, cíclica (12x36, 6x1...), noturna (vira a meia-noite), flexível, intervalo pré-assinalado; regimes **horas extras**, **banco de horas** e **híbrido**; **faixas progressivas de hora extra** (ex.: 2h a 50%, demais a 100%) |
 | **Colaborador** | Bater ponto · espelho de ponto · solicitações (esquecimento, ajuste, atestado com foto, abono, folga, férias) · banco de horas · comprovantes · **work chat** · bloco de notas · notificações · lembretes de marcação · assinatura eletrônica do espelho · crachá digital |
-| **Gestor** | Painel do dia (trabalhando, ausentes, atrasos, fora do perímetro) · mapa das marcações · colaboradores · aprovações · tratamento do ponto (incluir/desconsiderar com justificativa) · banco de horas manual · escalas · feriados (importação nacional) · perímetros no mapa · quiosques · departamentos e cargos · regras da empresa · auditoria |
+| **Gestor** | Painel do dia (trabalhando, ausentes, atrasos, fora do perímetro) com checklist de primeiros passos · mapa das marcações · colaboradores (cadastro ou **importação por planilha CSV**) · aprovações · tratamento do ponto (incluir/desconsiderar com justificativa) · **fechamento de período** · banco de horas manual · escalas · feriados (importação nacional) · perímetros no mapa · quiosques · departamentos e cargos · regras da empresa · auditoria · **gestor com visão só da própria equipe** (opcional) |
 | **Relatórios** | Espelho de ponto em PDF · resumo do período (CSV) · integração com folha (CSV com eventos HE50/HE100/ADN/faltas) · marcações detalhadas · **AFD** (leiaute 003, NSR, CRC-16, SHA-256 encadeado) · **AEJ** |
-| **Plataforma** | Multiempresa · perfis (proprietário, administrador, gestor, colaborador) · JWT com refresh rotativo · LGPD · trilha de auditoria |
+| **Integração** | **API com chaves somente leitura** (folha, ERP, BI) e **webhooks assinados (HMAC)** para marcações, solicitações, colaboradores e fechamentos |
+| **Plataforma** | Multiempresa · perfis (proprietário, administrador, gestor, colaborador) · JWT com refresh rotativo · limite de tentativas (login, PIN do quiosque, cadastro) · LGPD · trilha de auditoria |
 
 ## Arquitetura
 
@@ -71,9 +72,9 @@ Variáveis da API: veja [`.env.example`](.env.example) e [`backend/lib/src/confi
 
 ## Testes
 
-- `packages/pontomax_core`: 52 testes do motor CLT, AFD/AEJ, validadores, geocerca e QR.
-- `backend`: 17 testes de integração ponta a ponta (PostgreSQL real): autenticação, REP-P (NSR/hash/AFD), perímetro, foto, off-line, tratamento, espelho, banco de horas, solicitações, quiosque/QR, chat e dados de demonstração.
-- `app`: análise estática + testes de unidade; o CI gera o build web e o APK.
+- `packages/pontomax_core`: 57 testes do motor CLT (inclusive faixas de hora extra), AFD/AEJ, validadores, geocerca e QR.
+- `backend`: 24 testes de integração ponta a ponta (PostgreSQL real): autenticação, REP-P (NSR/hash/AFD), perímetro, foto, off-line, tratamento, espelho, banco de horas, solicitações, quiosque/QR, limite de PIN, fechamento de período, visão por equipe, importação CSV, chaves de API, webhooks, chat e dados de demonstração.
+- `app`: análise estática + testes de unidade/widget; o CI gera o build web, o **APK Android** e a imagem Docker.
 
 ## Documentação
 

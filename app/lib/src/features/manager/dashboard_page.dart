@@ -12,6 +12,8 @@ import '../../state/session.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 const _states = {
   'working': ('Trabalhando', AppColors.accent, Icons.play_circle_outline),
   'out': ('Encerrou/intervalo', AppColors.info, Icons.pause_circle_outline),
@@ -89,6 +91,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 16),
+                      if (me.companyWide) const _OnboardingCard(),
                       ResponsiveGrid(
                         minItemWidth: 200,
                         children: [
@@ -602,6 +605,120 @@ class _LiveMapPageState extends ConsumerState<LiveMapPage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+final onboardingProvider = FutureProvider.autoDispose<Map<String, dynamic>>(
+  (ref) => ref.watch(apiProvider).getMap('/onboarding'),
+);
+
+/// Checklist de primeiros passos (some quando concluído ou dispensado).
+class _OnboardingCard extends ConsumerStatefulWidget {
+  const _OnboardingCard();
+  @override
+  ConsumerState<_OnboardingCard> createState() => _OnboardingCardState();
+}
+
+class _OnboardingCardState extends ConsumerState<_OnboardingCard> {
+  static const _key = 'pontomax.onboarding_dismissed';
+  bool? _dismissed;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((p) {
+      if (mounted) setState(() => _dismissed = p.getBool(_key) ?? false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissed != false) return const SizedBox.shrink();
+    final data = ref.watch(onboardingProvider).value;
+    if (data == null) return const SizedBox.shrink();
+    final steps = [
+      for (final s in data['steps'] as List) (s as Map).cast<String, dynamic>(),
+    ];
+    final done = data['done'] as int;
+    final total = data['total'] as int;
+    if (done >= total) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.rocket_launch_outlined,
+                    color: AppColors.brand,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Primeiros passos ($done de $total)',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final p = await SharedPreferences.getInstance();
+                      await p.setBool(_key, true);
+                      if (mounted) setState(() => _dismissed = true);
+                    },
+                    child: const Text('Dispensar'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: done / total,
+                minHeight: 6,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              const SizedBox(height: 8),
+              for (final s in steps)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    s['done'] == true
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: s['done'] == true
+                        ? AppColors.accent
+                        : AppColors.muted,
+                  ),
+                  title: Text(
+                    s['title'] as String,
+                    style: TextStyle(
+                      decoration: s['done'] == true
+                          ? TextDecoration.lineThrough
+                          : null,
+                      color: s['done'] == true ? AppColors.muted : null,
+                    ),
+                  ),
+                  subtitle: s['done'] == true
+                      ? null
+                      : Text(s['description'] as String),
+                  trailing: s['done'] == true
+                      ? null
+                      : const Icon(Icons.chevron_right),
+                  onTap: s['done'] == true
+                      ? null
+                      : () => context.go(s['route'] as String),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

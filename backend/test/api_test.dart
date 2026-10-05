@@ -584,6 +584,9 @@ void main() {
       await seedDemo(api.app);
       await seedDemo(api.app); // idempotente
       final admin = await api.login('admin@pontomax.app', 'pontomax123');
+      final onboarding = await api.get('/onboarding', token: admin);
+      expect(onboarding.status, 200);
+      expect(onboarding.json['done'], greaterThanOrEqualTo(4));
       final dash = await api.get('/dashboard', token: admin);
       expect(dash.status, 200, reason: '$dash');
       expect(dash.json['totals']['members'], 7);

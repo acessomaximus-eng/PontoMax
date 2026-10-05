@@ -31,6 +31,7 @@ class ReportRoutes {
     ..post('/closings', _close)
     ..delete('/closings/<id>', _reopen)
     ..get('/dashboard', _dashboard)
+    ..get('/onboarding', _onboarding)
     ..get('/audit', _audit);
 
   (LocalDate, LocalDate) _period(Request req, MemberContext ctx) {
@@ -284,6 +285,76 @@ class ReportRoutes {
     if (n == 0) throw const ApiError.notFound();
     await app.audit.log(companyId: ctx.companyId, userId: ctx.user.id, action: 'reopen', entity: 'period', entityId: id, ip: req.clientIp);
     return noContent();
+  }
+
+  /// Checklist de configuração inicial da empresa.
+  Future<Response> _onboarding(Request req) async {
+    final ctx = await app.sessions.member(req);
+    ctx.requireManager();
+    final c = ctx.company;
+    Future<int> count(String sql) async =>
+        (await app.db.one('SELECT count(*)::int AS n FROM $sql', {'c': ctx.companyId}))!['n'] as int;
+    final members = await count('members WHERE company_id = @c AND active');
+    final fences = await count('geofences WHERE company_id = @c AND active');
+    final schedules = await count('schedules WHERE company_id = @c AND active');
+    final editedSchedules =
+        await count("schedules WHERE company_id = @c AND active AND updated_at > created_at + interval '1 second'");
+    final devices = await count('devices WHERE company_id = @c');
+    final punches = await count('punches WHERE company_id = @c');
+    final settings = ctx.settings;
+    final steps = [
+      {
+        'key': 'company',
+        'title': 'Complete os dados do empregador',
+        'description': 'CNPJ, razão social e endereço aparecem no comprovante, no espelho e no AFD.',
+        'route': '/empresa',
+        'done': (c['document'] as String? ?? '').isNotEmpty && (c['address'] as String? ?? '').isNotEmpty,
+      },
+      {
+        'key': 'schedule',
+        'title': 'Revise as escalas de trabalho',
+        'description': 'Ajuste horários, tolerâncias e regime (horas extras, banco de horas ou híbrido).',
+        'route': '/escalas',
+        'done': schedules > 1 || editedSchedules > 0,
+      },
+      {
+        'key': 'geofence',
+        'title': 'Cadastre o local de trabalho (perímetro)',
+        'description': 'Valide a localização das marcações pelo celular.',
+        'route': '/perimetros',
+        'done': fences > 0,
+      },
+      {
+        'key': 'members',
+        'title': 'Convide sua equipe',
+        'description': 'Cadastre um a um ou importe uma planilha.',
+        'route': '/equipe',
+        'done': members > 1,
+      },
+      {
+        'key': 'device',
+        'title': 'Ative um quiosque (opcional)',
+        'description': 'Transforme um tablet em relógio de ponto coletivo com PIN, crachá ou QR Code.',
+        'route': '/dispositivos',
+        'done': devices > 0,
+      },
+      {
+        'key': 'inpi',
+        'title': 'Informe o registro do REP-P no INPI',
+        'description': 'Número exibido no comprovante e no cabeçalho do AFD.',
+        'route': '/empresa',
+        'done': settings.inpiNumber.isNotEmpty || app.config.inpiNumber != '00000000000000000',
+      },
+      {
+        'key': 'first_punch',
+        'title': 'Registre a primeira marcação',
+        'description': 'Teste pelo app, navegador ou quiosque.',
+        'route': '/ponto',
+        'done': punches > 0,
+      },
+    ];
+    final done = steps.where((s) => s['done'] == true).length;
+    return jsonResponse({'steps': steps, 'done': done, 'total': steps.length});
   }
 
   /// Indicadores do dia para o gestor.

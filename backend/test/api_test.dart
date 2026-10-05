@@ -416,6 +416,34 @@ void main() {
     });
   });
 
+  group('Importação CSV', () {
+    test('cria colaboradores, departamentos e reporta erros por linha', () async {
+      final (token, _, _) = await api.register();
+      const csv = '\uFEFFNome;E-mail;CPF;Matrícula;Departamento;Cargo;Admissão;Perfil\n'
+          'Ana Lima;ana@x.com;111.444.777-35;10;Vendas;Vendedora;01/09/2026;colaborador\n'
+          'Beto Reis;beto@x.com;123;11;Vendas;;;\n'
+          '"Carla, Souza";carla@x.com;39053344705;12;Estoque;Conferente;2026-08-15;Gestor\n';
+      final dry = await api.post('/members/import', {'csv': csv, 'dry_run': true}, token: token);
+      expect(dry.status, 200, reason: '$dry');
+      expect(dry.json['created'], 0);
+      expect(dry.json['errors'], 1);
+      final r = await api.post('/members/import', {'csv': csv}, token: token);
+      expect(r.json['created'], 2);
+      final results = r.json['results'] as List;
+      expect(results[1]['ok'], isFalse);
+      expect(results[1]['line'], 3);
+      expect(results[0]['temporary_password'], isNotNull);
+      final deps = await api.get('/departments', token: token);
+      expect(deps.list.map((d) => d['name']), containsAll(['Vendas', 'Estoque']));
+      final members = await api.get('/members', token: token);
+      final carla = members.list.firstWhere((m) => m['name'] == 'Carla, Souza');
+      expect(carla['role'], 'manager');
+      expect(carla['admission_date'], '2026-08-15');
+      final again = await api.post('/members/import', {'csv': csv}, token: token);
+      expect(again.json['created'], 0);
+    });
+  });
+
   group('Gestor com visão da equipe', () {
     test('vê e trata apenas o próprio departamento', () async {
       final (owner, company, _) = await api.register();

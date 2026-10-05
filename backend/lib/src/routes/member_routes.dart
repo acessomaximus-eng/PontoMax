@@ -1,11 +1,14 @@
 import 'package:pontomax_core/pontomax_core.dart';
+import 'package:postgres/postgres.dart' show ServerException;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
 import '../app.dart';
 import '../auth/crypto_utils.dart';
+import '../auth/session.dart';
 import '../db/database.dart';
 import '../http/http_utils.dart';
+import '../http/csv.dart';
 import '../http/mappers.dart';
 import 'auth_routes.dart';
 
@@ -19,6 +22,7 @@ class MemberRoutes {
     ..get('/members', _list)
     ..get('/members/<id>', _get)
     ..post('/members', _create)
+    ..post('/members/import', _import)
     ..put('/members/<id>', _update)
     ..post('/members/<id>/dismiss', _dismiss)
     ..post('/members/<id>/reactivate', _reactivate)
@@ -77,7 +81,11 @@ class MemberRoutes {
   Future<Response> _create(Request req) async {
     final ctx = await app.sessions.member(req);
     ctx.requireManager();
-    final body = await readJson(req);
+    return created(await _createOne(ctx, await readJson(req), req.clientIp));
+  }
+
+  /// Cria um colaborador (novo usuário ou vínculo de usuário existente).
+  Future<Map<String, Object?>> _createOne(MemberContext ctx, Map<String, dynamic> body, String? ip) async {
     final name = body.str('name', label: 'nome');
     final email = body.str('email', label: 'e-mail').toLowerCase();
     if (!Documents.isValidEmail(email)) throw const ApiError.badRequest('E-mail inválido');
@@ -156,7 +164,7 @@ class MemberRoutes {
         entity: 'member',
         entityId: memberId,
         data: {...body, 'new_user': newUser},
-        ip: req.clientIp,
+        ip: ip,
       );
       return (await tx.one('$memberSelectSql WHERE m.id = @id', {'id': memberId}))!;
     });
@@ -173,10 +181,132 @@ class MemberRoutes {
           'Baixe também o aplicativo PontoMax no seu celular.',
     );
     app.webhooks.dispatch(ctx.companyId, 'member.created', map.member(row));
-    return created({
+    return {
       ...map.member(row),
       if (showPassword) 'temporary_password': password,
       'existing_user': !newUser,
+    };
+  }
+
+  /// Importação em lote (CSV com cabeçalho). Colunas reconhecidas:
+  /// nome, email, cpf, matricula, departamento, cargo, escala, admissao,
+  /// telefone, perfil, cracha, pin. Departamentos e cargos inexistentes são
+  /// criados. Com `dry_run`, apenas valida.
+  Future<Response> _import(Request req) async {
+    final ctx = await app.sessions.member(req);
+    ctx.requireCompanyWide();
+    final body = await readJson(req);
+    final rows = parseCsv(body.str('csv', label: 'arquivo CSV'));
+    if (rows.length < 2) throw const ApiError.badRequest('O arquivo precisa de cabeçalho e ao menos uma linha');
+    if (rows.length > 1001) throw const ApiError.badRequest('Máximo de 1.000 colaboradores por importação');
+    final dryRun = body.optBool('dry_run') ?? false;
+    final header = [for (final h in rows.first) normalizeHeader(h)];
+    int col(List<String> names) => header.indexWhere(names.contains);
+    final idx = {
+      'name': col(['nome', 'name', 'nome completo']),
+      'email': col(['email', 'e-mail']),
+      'cpf': col(['cpf']),
+      'registration': col(['matricula', 'registro']),
+      'department': col(['departamento', 'setor']),
+      'position': col(['cargo', 'funcao']),
+      'schedule': col(['escala', 'jornada']),
+      'admission_date': col(['admissao', 'data de admissao']),
+      'phone': col(['telefone', 'celular']),
+      'role': col(['perfil', 'papel']),
+      'badge_code': col(['cracha']),
+      'pin': col(['pin']),
+    };
+    for (final required in ['name', 'email', 'cpf']) {
+      if (idx[required]! < 0) throw ApiError.badRequest('Coluna obrigatória ausente: $required');
+    }
+
+    final deps = <String, String>{};
+    final positions = <String, String>{};
+    for (final r in await app.db.query('SELECT id, name FROM departments WHERE company_id = @c', {'c': ctx.companyId})) {
+      deps[(r['name'] as String).toLowerCase()] = r['id'] as String;
+    }
+    for (final r in await app.db.query('SELECT id, name FROM positions WHERE company_id = @c', {'c': ctx.companyId})) {
+      positions[(r['name'] as String).toLowerCase()] = r['id'] as String;
+    }
+    final schedules = {
+      for (final r in await app.db.query('SELECT id, name FROM schedules WHERE company_id = @c AND active', {'c': ctx.companyId}))
+        (r['name'] as String).toLowerCase(): r['id'] as String,
+    };
+
+    Future<String?> named(String table, Map<String, String> cache, String? name) async {
+      if (name == null || name.trim().isEmpty) return null;
+      final key = name.trim().toLowerCase();
+      if (cache.containsKey(key)) return cache[key];
+      if (dryRun) return null;
+      final r = await app.db.one('INSERT INTO $table (company_id, name) VALUES (@c, @n) RETURNING id',
+          {'c': ctx.companyId, 'n': name.trim()});
+      return cache[key] = r!['id'] as String;
+    }
+
+    final results = <Map<String, Object?>>[];
+    var createdCount = 0;
+    for (var i = 1; i < rows.length; i++) {
+      final row = rows[i];
+      if (row.every((c) => c.trim().isEmpty)) continue;
+      String? cell(String key) {
+        final c = idx[key]!;
+        if (c < 0 || c >= row.length) return null;
+        final v = row[c].trim();
+        return v.isEmpty ? null : v;
+      }
+
+      final line = i + 1;
+      try {
+        final admission = cell('admission_date');
+        final roleText = (cell('role') ?? '').toLowerCase();
+        final scheduleName = cell('schedule');
+        final scheduleId = scheduleName == null ? null : schedules[scheduleName.toLowerCase()];
+        if (scheduleName != null && scheduleId == null) {
+          throw ApiError.badRequest('Escala não encontrada: $scheduleName');
+        }
+        final data = <String, dynamic>{
+          'name': cell('name'),
+          'email': cell('email'),
+          'cpf': cell('cpf'),
+          'registration': cell('registration'),
+          'phone': cell('phone'),
+          'badge_code': cell('badge_code'),
+          'pin': cell('pin'),
+          'schedule_id': scheduleId,
+          'role': roleText.startsWith('gest') || roleText == 'manager' ? 'manager' : 'employee',
+          if (admission != null) 'admission_date': parseBrDate(admission),
+        };
+        if (dryRun) {
+          if (!Documents.isValidCpf(data['cpf'] as String?)) throw const ApiError.badRequest('CPF inválido');
+          if (!Documents.isValidEmail((data['email'] as String?)?.toLowerCase())) {
+            throw const ApiError.badRequest('E-mail inválido');
+          }
+          results.add({'line': line, 'ok': true, 'name': data['name']});
+          continue;
+        }
+        data['department_id'] = await named('departments', deps, cell('department'));
+        data['position_id'] = await named('positions', positions, cell('position'));
+        final m = await _createOne(ctx, data, req.clientIp);
+        createdCount++;
+        results.add({
+          'line': line,
+          'ok': true,
+          'name': m['name'],
+          'email': m['email'],
+          'temporary_password': m['temporary_password'],
+        });
+      } on ApiError catch (e) {
+        results.add({'line': line, 'ok': false, 'name': cell('name'), 'error': e.message});
+      } on ServerException catch (e) {
+        final msg = e.code == '23505' ? 'Registro duplicado (crachá, CPF ou e-mail já usado)' : 'Erro ao gravar (${e.code})';
+        results.add({'line': line, 'ok': false, 'name': cell('name'), 'error': msg});
+      }
+    }
+    return jsonResponse({
+      'dry_run': dryRun,
+      'created': createdCount,
+      'errors': results.where((r) => r['ok'] != true).length,
+      'results': results,
     });
   }
 

@@ -26,7 +26,17 @@ class _TeamPageState extends ConsumerState<TeamPage> {
     final filter = (status: _status, q: _q);
     final data = ref.watch(membersProvider(filter));
     return Scaffold(
-      appBar: AppBar(title: const Text('Colaboradores')),
+      appBar: AppBar(
+        title: const Text('Colaboradores'),
+        actions: [
+          if (ref.watch(meProvider).companyWide)
+            TextButton.icon(
+              onPressed: () => context.push('/equipe/importar'),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Importar planilha'),
+            ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/equipe/novo'),
         icon: const Icon(Icons.person_add_alt_1),

@@ -10,6 +10,7 @@ import 'features/employee/home_page.dart';
 import 'features/kiosk/kiosk_pages.dart';
 import 'features/manager/approvals_reports.dart';
 import 'features/manager/dashboard_page.dart';
+import 'features/manager/import_page.dart';
 import 'features/manager/integrations_page.dart';
 import 'features/manager/schedule_pages.dart';
 import 'features/manager/settings_pages.dart';
@@ -124,6 +125,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/painel', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/mapa', builder: (_, _) => const LiveMapPage()),
           GoRoute(path: '/equipe', builder: (_, _) => const TeamPage()),
+          GoRoute(
+            path: '/equipe/importar',
+            builder: (_, _) => const ImportMembersPage(),
+          ),
           GoRoute(
             path: '/equipe/novo',
             builder: (_, _) => const MemberFormPage(),

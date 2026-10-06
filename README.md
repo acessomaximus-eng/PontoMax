@@ -38,9 +38,8 @@ Uma única linguagem (Dart) em todo o stack: as regras de cálculo são as mesma
 > Passo a passo completo para iniciantes (computador e celular): **[docs/como-rodar.md](docs/como-rodar.md)**.
 
 ```bash
-cp .env.example .env               # defina JWT_SECRET (openssl rand -hex 32)
-echo "SEED_DEMO=true" >> .env      # opcional: empresa de demonstração
-docker compose up -d --build
+echo "SEED_DEMO=true" > .env       # opcional: empresa de demonstração
+docker compose up -d --build       # JWT_SECRET é gerado se não for definido
 ```
 
 - Site: http://localhost:8080

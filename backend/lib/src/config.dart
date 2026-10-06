@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 /// Configuração via variáveis de ambiente.
 class Config {
@@ -55,16 +56,14 @@ class Config {
   factory Config.fromEnv([Map<String, String>? env]) {
     final e = env ?? Platform.environment;
     String? opt(String k) => (e[k]?.trim().isEmpty ?? true) ? null : e[k]!.trim();
-    final secret = opt('JWT_SECRET');
-    if (secret == null && opt('PONTOMAX_ENV') == 'production') {
-      throw StateError('JWT_SECRET é obrigatório em produção');
-    }
+    final storageDir = opt('STORAGE_DIR') ?? 'storage';
+    final secret = opt('JWT_SECRET') ?? _persistedSecret(storageDir);
     return Config(
       port: int.tryParse(opt('PORT') ?? '') ?? 8080,
       databaseUrl: opt('DATABASE_URL') ??
           'postgres://pontomax:pontomax@localhost:5432/pontomax',
-      jwtSecret: secret ?? 'dev-secret-change-me',
-      storageDir: opt('STORAGE_DIR') ?? 'storage',
+      jwtSecret: secret,
+      storageDir: storageDir,
       webDir: opt('WEB_DIR'),
       siteDir: opt('SITE_DIR'),
       publicUrl: opt('PUBLIC_URL') ?? 'http://localhost:8080',
@@ -82,5 +81,23 @@ class Config {
       mailFrom: opt('MAIL_FROM') ?? 'PontoMax <nao-responda@pontomax.app>',
       seedDemo: opt('SEED_DEMO') == 'true',
     );
+  }
+
+  /// Sem `JWT_SECRET`, gera um segredo aleatório e o guarda em
+  /// `STORAGE_DIR/.jwt_secret` (persistente no volume do Docker), para que o
+  /// sistema rode sem configuração e os logins sobrevivam a reinícios.
+  static String _persistedSecret(String storageDir) {
+    final file = File('$storageDir/.jwt_secret');
+    if (file.existsSync()) {
+      final saved = file.readAsStringSync().trim();
+      if (saved.length >= 32) return saved;
+    }
+    final rnd = Random.secure();
+    final secret = List.generate(32, (_) => rnd.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(secret);
+    if (!Platform.isWindows) Process.runSync('chmod', ['600', file.path]);
+    stderr.writeln('JWT_SECRET não definido: segredo aleatório gerado em ${file.path}');
+    return secret;
   }
 }

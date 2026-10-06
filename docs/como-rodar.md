@@ -11,19 +11,13 @@ O jeito mais simples é com o **Docker Desktop**: um único comando sobe o banco
    cd PontoMax
    git checkout claude/pontomax-app-dev-in2vii
    ```
-3. Crie o arquivo de configuração com os dados de demonstração:
+3. Suba tudo com os dados de demonstração (a primeira vez leva de 5 a 10 minutos, pois compila o app). No **Git Bash**, macOS ou Linux:
    ```bash
-   cp .env.example .env
-   ```
-   Abra o `.env` num editor de texto e preencha:
-   ```
-   JWT_SECRET=qualquer-texto-longo-e-secreto-com-32-caracteres-ou-mais
-   SEED_DEMO=true
-   ```
-4. Suba tudo (a primeira vez leva de 5 a 10 minutos, pois compila o app):
-   ```bash
+   echo "SEED_DEMO=true" > .env
    docker compose up -d --build
    ```
+   Não é preciso configurar mais nada: o segredo de login (`JWT_SECRET`) é gerado automaticamente. Para personalizar (e-mail, certificado digital etc.), copie o `.env.example` para `.env` e preencha.
+4. Aguarde o comando terminar e confira com `docker compose ps` (o serviço `app` deve ficar *healthy*).
 5. Acesse no navegador:
    - **Site:** http://localhost:8080
    - **App web:** http://localhost:8080/app

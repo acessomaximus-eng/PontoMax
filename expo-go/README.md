@@ -14,7 +14,7 @@ Abre o PontoMax completo no celular pelo **Expo Go**, lendo o QR Code do `npx ex
 3. No computador, com [Node.js 20+](https://nodejs.org):
    ```bash
    cd expo-go
-   npm install
+   npm install        # obrigatório na primeira vez (instala o Expo)
    npx expo start
    ```
 4. Leia o **QR Code** que aparece no terminal: no Android pelo próprio Expo Go, no iPhone pela câmera.

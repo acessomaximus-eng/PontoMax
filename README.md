@@ -27,6 +27,7 @@ backend/                 API REST em Dart (shelf + PostgreSQL). Serve também o 
                          web (/app) e o site (/).
 app/                     App Flutter (Android, iOS, Web, Windows, macOS, Linux).
 site/                    Site institucional estático (landing, privacidade, termos).
+expo-go/                 Abre o PontoMax no Expo Go (QR Code do `npx expo start`).
 docs/                    Documentação (API, conformidade, deploy, roadmap).
 ```
 

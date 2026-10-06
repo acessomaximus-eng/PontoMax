@@ -52,6 +52,18 @@ Comandos úteis: `docker compose logs -f app` (ver logs) · `docker compose down
 > Se o celular não conectar, libere a porta 8080 no firewall do computador.
 > `http://` só é aceito para endereços da rede local; em produção use `https://`.
 
+## 2b. No celular pelo Expo Go (sem instalar APK)
+
+Com o PontoMax rodando no computador, instale o **Expo Go** no celular e, com [Node.js](https://nodejs.org) instalado:
+
+```bash
+cd expo-go
+npm install
+npx expo start
+```
+
+Leia o **QR Code** que aparece no terminal (Android: pelo Expo Go; iPhone: pela câmera). O app encontra o computador sozinho. Detalhes em [expo-go/README.md](../expo-go/README.md).
+
 ## 3. Outras plataformas
 
 - **iPhone/iPad, Windows, macOS e Linux:** gere os instaladores em **Actions → Release multiplataforma → Run workflow** (os builds de iOS/macOS usam mais minutos do GitHub Actions). O app de iOS precisa de uma conta Apple Developer para instalar em aparelhos.

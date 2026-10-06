@@ -134,6 +134,21 @@ jobs:
           path: e2e/test-results
           if-no-files-found: ignore
 
+  expo:
+    name: Expo Go (tipos e bundle)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: expo-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npx expo export --platform android --output-dir /tmp/expo-export
+
   android:
     name: Build Android (APK)
     runs-on: ubuntu-latest

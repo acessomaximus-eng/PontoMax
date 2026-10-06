@@ -54,7 +54,7 @@ Comandos úteis: `docker compose logs -f app` (ver logs) · `docker compose down
 
 ## 3. Outras plataformas
 
-- **iPhone/iPad, Windows, macOS e Linux:** gere os instaladores em **Actions → Release → Run workflow** (os builds de iOS/macOS usam mais minutos do GitHub Actions). O app de iOS precisa de uma conta Apple Developer para instalar em aparelhos.
+- **iPhone/iPad, Windows, macOS e Linux:** gere os instaladores em **Actions → Release multiplataforma → Run workflow** (os builds de iOS/macOS usam mais minutos do GitHub Actions). O app de iOS precisa de uma conta Apple Developer para instalar em aparelhos.
 - **Desenvolvimento sem Docker** (Dart/Flutter e PostgreSQL instalados): veja a seção *Desenvolvimento* do [README](../README.md).
 
 ## 4. Colocar no ar para a empresa

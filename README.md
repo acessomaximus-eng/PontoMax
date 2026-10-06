@@ -34,6 +34,8 @@ Uma única linguagem (Dart) em todo o stack: as regras de cálculo são as mesma
 
 ## Rodando com Docker (recomendado)
 
+> Passo a passo completo para iniciantes (computador e celular): **[docs/como-rodar.md](docs/como-rodar.md)**.
+
 ```bash
 cp .env.example .env               # defina JWT_SECRET (openssl rand -hex 32)
 echo "SEED_DEMO=true" >> .env      # opcional: empresa de demonstração
@@ -79,6 +81,7 @@ Variáveis da API: veja [`.env.example`](.env.example) e [`backend/lib/src/confi
 
 ## Documentação
 
+- [Como rodar (passo a passo)](docs/como-rodar.md)
 - [API REST](docs/api.md)
 - [Conformidade com a Portaria 671 e CLT](docs/conformidade.md)
 - [Deploy em produção (Docker, Google Cloud Run)](docs/deploy.md)

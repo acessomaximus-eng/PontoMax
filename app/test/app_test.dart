@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:pontomax/src/api/api_client.dart';
+import 'package:pontomax/src/config.dart';
 import 'package:pontomax/src/features/auth/auth_pages.dart';
 import 'package:pontomax/src/state/session.dart';
 import 'package:pontomax/src/widgets/common.dart';
@@ -14,6 +15,15 @@ import 'package:pontomax_core/pontomax_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('servidor: http só na rede local, https na internet', () {
+    expect(AppConfig.validateServer('192.168.0.10:8080'), isNull);
+    expect(AppConfig.validateServer('http://10.0.0.5:8080'), isNull);
+    expect(AppConfig.validateServer('ponto.empresa.com.br'), isNull);
+    expect(AppConfig.validateServer('http://ponto.empresa.com.br'), isNotNull);
+    expect(AppConfig.validateServer('http://172.40.0.1'), isNotNull);
+    expect(AppConfig.isLocalHost('172.20.1.1'), isTrue);
+  });
+
   setUpAll(() async {
     await initializeDateFormatting('pt_BR');
     SharedPreferences.setMockInitialValues({});
@@ -22,38 +32,54 @@ void main() {
   group('ApiClient', () {
     test('converte erros da API em ApiException', () async {
       final client = ApiClient(
-        client: MockClient((req) async => http.Response(
-              jsonEncode({
-                'error': {'code': 'outside_geofence', 'message': 'Você está fora do perímetro'},
-              }),
-              422,
-              headers: {'content-type': 'application/json'},
-            )),
+        client: MockClient(
+          (req) async => http.Response(
+            jsonEncode({
+              'error': {
+                'code': 'outside_geofence',
+                'message': 'Você está fora do perímetro',
+              },
+            }),
+            422,
+            headers: {'content-type': 'application/json'},
+          ),
+        ),
       );
       expect(
         () => client.post('/punches', {}),
-        throwsA(isA<ApiException>()
-            .having((e) => e.code, 'code', 'outside_geofence')
-            .having((e) => e.status, 'status', 422)),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', 'outside_geofence')
+              .having((e) => e.status, 'status', 422),
+        ),
       );
     });
 
     test('renova o token expirado e repete a requisição', () async {
       var calls = 0;
-      final client = ApiClient(
-        client: MockClient((req) async {
-          calls++;
-          if (req.url.path.endsWith('/auth/refresh')) {
-            return http.Response(jsonEncode({'access_token': 'novo', 'refresh_token': 'r2'}), 200);
-          }
-          if (req.headers['authorization'] == 'Bearer velho') {
-            return http.Response(jsonEncode({'error': {'code': 'token_expired', 'message': 'x'}}), 401);
-          }
-          return http.Response(jsonEncode({'ok': true}), 200);
-        }),
-      )
-        ..accessToken = 'velho'
-        ..refreshToken = 'r1';
+      final client =
+          ApiClient(
+              client: MockClient((req) async {
+                calls++;
+                if (req.url.path.endsWith('/auth/refresh')) {
+                  return http.Response(
+                    jsonEncode({'access_token': 'novo', 'refresh_token': 'r2'}),
+                    200,
+                  );
+                }
+                if (req.headers['authorization'] == 'Bearer velho') {
+                  return http.Response(
+                    jsonEncode({
+                      'error': {'code': 'token_expired', 'message': 'x'},
+                    }),
+                    401,
+                  );
+                }
+                return http.Response(jsonEncode({'ok': true}), 200);
+              }),
+            )
+            ..accessToken = 'velho'
+            ..refreshToken = 'r1';
       String? saved;
       client.onTokens = (a, r) => saved = '$a/$r';
       final res = await client.get('/me');
@@ -63,7 +89,11 @@ void main() {
     });
 
     test('falha de rede vira ApiException.isNetwork', () async {
-      final client = ApiClient(client: MockClient((req) async => throw http.ClientException('offline')));
+      final client = ApiClient(
+        client: MockClient(
+          (req) async => throw http.ClientException('offline'),
+        ),
+      );
       try {
         await client.get('/me');
         fail('deveria lançar');
@@ -78,10 +108,27 @@ void main() {
       final me = Me.fromJson({
         'user': {'id': 'u', 'name': 'Ana', 'email': 'ana@x.com'},
         'memberships': [
-          {'member_id': 'm', 'company_id': 'c', 'company_name': 'Padaria', 'role': 'manager'},
+          {
+            'member_id': 'm',
+            'company_id': 'c',
+            'company_name': 'Padaria',
+            'role': 'manager',
+          },
         ],
-        'member': {'id': 'm', 'company_id': 'c', 'user_id': 'u', 'name': 'Ana', 'email': 'ana@x.com', 'role': 'manager'},
-        'company': {'id': 'c', 'name': 'Padaria', 'utc_offset_minutes': -240, 'settings': {'require_photo': true}},
+        'member': {
+          'id': 'm',
+          'company_id': 'c',
+          'user_id': 'u',
+          'name': 'Ana',
+          'email': 'ana@x.com',
+          'role': 'manager',
+        },
+        'company': {
+          'id': 'c',
+          'name': 'Padaria',
+          'utc_offset_minutes': -240,
+          'settings': {'require_photo': true},
+        },
         'unread_messages': 3,
       });
       expect(me.isManager, isTrue);
@@ -92,8 +139,13 @@ void main() {
     });
 
     test('relógio do servidor aplica o deslocamento', () {
-      ServerClock.sync(DateTime.now().toUtc().add(const Duration(minutes: 10)), Duration.zero);
-      final diff = ServerClock.nowUtc().difference(DateTime.now().toUtc()).inMinutes;
+      ServerClock.sync(
+        DateTime.now().toUtc().add(const Duration(minutes: 10)),
+        Duration.zero,
+      );
+      final diff = ServerClock.nowUtc()
+          .difference(DateTime.now().toUtc())
+          .inMinutes;
       expect(diff, inInclusiveRange(9, 10));
       ServerClock.offset = Duration.zero;
     });
@@ -103,7 +155,10 @@ void main() {
     test('horas e datas em pt-BR', () {
       expect(hm(-75, signed: true), '-01:15');
       expect(hm(0, dashIfZero: true), '—');
-      expect(capitalize(monthLabel(const LocalDate(2026, 10, 1))), 'Outubro de 2026');
+      expect(
+        capitalize(monthLabel(const LocalDate(2026, 10, 1))),
+        'Outubro de 2026',
+      );
     });
   });
 
@@ -111,7 +166,9 @@ void main() {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: LoginPage())));
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: LoginPage())),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Entrar'), findsWidgets);
     expect(find.text('E-mail'), findsOneWidget);
@@ -120,9 +177,17 @@ void main() {
   });
 
   testWidgets('StatCard mostra valor e rótulo', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(body: StatCard(label: 'Horas extras', value: '02:30', icon: Icons.trending_up)),
-    ));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: StatCard(
+            label: 'Horas extras',
+            value: '02:30',
+            icon: Icons.trending_up,
+          ),
+        ),
+      ),
+    );
     expect(find.text('02:30'), findsOneWidget);
     expect(find.text('Horas extras'), findsOneWidget);
   });

@@ -308,11 +308,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final url = await promptText(
       context,
       'Endereço do servidor',
-      label: 'Ex.: https://ponto.suaempresa.com.br',
+      label: 'Ex.: https://ponto.suaempresa.com.br ou 192.168.0.10:8080',
       initial: AppConfig.apiUrl,
       required: false,
     );
     if (url == null) return;
+    final error = url.isEmpty ? null : AppConfig.validateServer(url);
+    if (error != null) {
+      if (context.mounted) showSnack(context, error, error: true);
+      return;
+    }
     await AppConfig.setApiUrl(url.isEmpty ? null : url);
     if (context.mounted) showSnack(context, 'Servidor: ${AppConfig.apiUrl}');
   }
